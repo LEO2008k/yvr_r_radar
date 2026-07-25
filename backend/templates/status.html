@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Health Checks - YVR Radar</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen p-8">
+    <div class="max-w-3xl mx-auto">
+        <div class="flex justify-between items-center mb-8">
+            <h1 class="text-3xl font-bold text-emerald-400">System Health Status</h1>
+            <div>
+                <a href="/" class="text-blue-400 hover:underline mr-4">← Back to Map</a>
+                <a href="/stats" class="text-blue-400 hover:underline">View Stats →</a>
+            </div>
+        </div>
+
+        <div class="bg-gray-800 rounded-lg shadow-lg p-6 mb-8 border border-gray-700">
+            <h2 class="text-xl font-bold mb-4 border-b border-gray-700 pb-2">Core Services</h2>
+            <ul class="space-y-4">
+                <li class="flex items-center justify-between">
+                    <span class="font-semibold text-gray-300">Database Connection</span>
+                    <span id="status-db" class="px-3 py-1 rounded text-sm font-bold bg-gray-700 text-gray-400">Loading...</span>
+                </li>
+                <li class="flex items-center justify-between">
+                    <span class="font-semibold text-gray-300">Cron Scraper System</span>
+                    <span id="status-cron" class="px-3 py-1 rounded text-sm font-bold bg-gray-700 text-gray-400">Loading...</span>
+                </li>
+            </ul>
+        </div>
+        
+        <div class="bg-gray-800 rounded-lg shadow-lg p-6 mb-8 border border-gray-700">
+            <h2 class="text-xl font-bold mb-4 border-b border-gray-700 pb-2">Scraper APIs Health</h2>
+            <ul id="api-health-list" class="space-y-4">
+                <!-- Dynamically populated -->
+                <li class="text-gray-400">Loading APIs...</li>
+            </ul>
+        </div>
+        
+        <div class="bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-700">
+            <h2 class="text-xl font-bold mb-4 border-b border-gray-700 pb-2">Last Synchronization</h2>
+            <p class="text-gray-400">The scrapers last successfully updated the database at:</p>
+            <p id="last-sync" class="text-2xl font-mono text-emerald-400 mt-2">Loading...</p>
+        </div>
+    </div>
+
+    <!-- Error Modal -->
+    <div id="error-modal" class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center hidden z-50">
+        <div class="bg-gray-800 rounded-lg p-6 max-w-2xl w-full border border-gray-600 shadow-2xl">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold text-red-400" id="modal-title">API Error Detail</h3>
+                <button onclick="document.getElementById('error-modal').classList.add('hidden')" class="text-gray-400 hover:text-white">✕</button>
+            </div>
+            <pre id="modal-content" class="bg-gray-900 text-gray-300 p-4 rounded text-sm overflow-x-auto whitespace-pre-wrap">Error details here...</pre>
+        </div>
+    </div>
+
+    <script>
+        function showModal(apiName, errorMsg) {
+            document.getElementById('modal-title').textContent = `${apiName} Error Detail`;
+            document.getElementById('modal-content').textContent = errorMsg || 'No error message recorded.';
+            document.getElementById('error-modal').classList.remove('hidden');
+        }
+
+        async function fetchStatus() {
+            try {
+                const response = await fetch('/api/status');
+                const data = await response.json();
+                
+                const setStatus = (elementId, isOk) => {
+                    const el = document.getElementById(elementId);
+                    if (isOk) {
+                        el.textContent = '✅ Operational';
+                        el.className = 'px-3 py-1 rounded text-sm font-bold bg-green-900 text-green-300';
+                    } else {
+                        el.textContent = '❌ Failing';
+                        el.className = 'px-3 py-1 rounded text-sm font-bold bg-red-900 text-red-300';
+                    }
+                };
+
+                setStatus('status-db', data.db_status);
+                setStatus('status-cron', data.cron_status);
+                
+                // Render APIs
+                const apiList = document.getElementById('api-health-list');
+                apiList.innerHTML = '';
+                
+                if (data.api_statuses && data.api_statuses.length > 0) {
+                    data.api_statuses.forEach(api => {
+                        const li = document.createElement('li');
+                        li.className = 'flex flex-col sm:flex-row sm:items-center justify-between border-b border-gray-700 pb-3 last:border-0 last:pb-0';
+                        
+                        const leftDiv = document.createElement('div');
+                        leftDiv.className = 'mb-2 sm:mb-0';
+                        const nameSpan = document.createElement('span');
+                        nameSpan.className = 'font-semibold text-gray-200 block';
+                        nameSpan.textContent = api.api_name;
+                        
+                        const sinceStr = api.last_status_change ? new Date(api.last_status_change).toLocaleString() : 'Unknown';
+                        const checkedStr = api.last_checked ? new Date(api.last_checked).toLocaleTimeString() : 'Unknown';
+                        
+                        const detailsSpan = document.createElement('span');
+                        detailsSpan.className = 'text-xs text-gray-500 block mt-1';
+                        detailsSpan.textContent = `State since: ${sinceStr} | Last ping: ${checkedStr}`;
+                        
+                        leftDiv.appendChild(nameSpan);
+                        leftDiv.appendChild(detailsSpan);
+                        
+                        const rightDiv = document.createElement('div');
+                        rightDiv.className = 'flex items-center space-x-3';
+                        
+                        if (!api.is_healthy) {
+                            const errBtn = document.createElement('button');
+                            errBtn.textContent = 'View Debug';
+                            errBtn.className = 'px-2 py-1 bg-red-800 hover:bg-red-700 text-red-100 rounded text-xs border border-red-600 transition';
+                            errBtn.onclick = () => showModal(api.api_name, api.error_message);
+                            rightDiv.appendChild(errBtn);
+                        }
+                        
+                        const statusSpan = document.createElement('span');
+                        if (api.is_healthy) {
+                            statusSpan.textContent = '✅ Operational';
+                            statusSpan.className = 'px-3 py-1 rounded text-sm font-bold bg-green-900 text-green-300';
+                        } else {
+                            statusSpan.textContent = '❌ Failing';
+                            statusSpan.className = 'px-3 py-1 rounded text-sm font-bold bg-red-900 text-red-300';
+                        }
+                        rightDiv.appendChild(statusSpan);
+                        
+                        li.appendChild(leftDiv);
+                        li.appendChild(rightDiv);
+                        apiList.appendChild(li);
+                    });
+                } else {
+                    apiList.innerHTML = '<li class="text-gray-500 italic">No API data collected yet (checking in background...)</li>';
+                }
+                
+                if (data.last_sync_time) {
+                    const syncDate = new Date(data.last_sync_time);
+                    document.getElementById('last-sync').textContent = syncDate.toLocaleString();
+                } else {
+                    document.getElementById('last-sync').textContent = "Never";
+                }
+
+            } catch (error) {
+                console.error("Error fetching status:", error);
+                ['status-db', 'status-cron'].forEach(id => {
+                    const el = document.getElementById(id);
+                    el.textContent = '⚠️ Error loading';
+                    el.className = 'px-3 py-1 rounded text-sm font-bold bg-yellow-900 text-yellow-300';
+                });
+            }
+        }
+
+        fetchStatus();
+        setInterval(fetchStatus, 30000); // Refresh every 30s
+    </script>
+</body>
+</html>

@@ -7,21 +7,83 @@ import os
 import json
 from datetime import datetime, date, time
 from database import SessionLocal
-from models import Event, ScrapeLog
+from models import Event, ScrapeLog, ApiStatus
 from starlette.middleware.sessions import SessionMiddleware
 from apscheduler.schedulers.background import BackgroundScheduler
 from run_scrapers import scrape_all
 from contextlib import asynccontextmanager
+import urllib.parse
+
+def check_api_health():
+    db = SessionLocal()
+    try:
+        checks = {
+            "Google Geocoding": {"url": None, "type": "google"},
+            "Luma": {"url": "https://lu.ma/vancouver", "type": "http"},
+            "Meetup": {"url": "https://www.meetup.com/find/?location=ca--bc--Vancouver&source=EVENTS", "type": "http"},
+            "AllEvents": {"url": "https://allevents.in/vancouver/all", "type": "http"}
+        }
+        
+        for name, info in checks.items():
+            is_healthy = 1
+            error_msg = None
+            
+            try:
+                if info["type"] == "google":
+                    api_key = os.getenv("GOOGLE_MAPS_API_KEY")
+                    if not api_key or api_key == "YOUR_API_KEY_HERE":
+                        raise Exception("Missing GOOGLE_MAPS_API_KEY")
+                    search_address = "Vancouver, BC, Canada"
+                    url = f"https://maps.googleapis.com/maps/api/geocode/json?address={urllib.parse.quote(search_address)}&key={api_key}"
+                    with httpx.Client() as client:
+                        resp = client.get(url, timeout=10.0)
+                        data = resp.json()
+                        if data.get("status") != "OK":
+                            raise Exception(f"Google API Error: {data.get('status')} - {data.get('error_message', '')}")
+                else:
+                    headers = {"User-Agent": "Mozilla/5.0"}
+                    with httpx.Client(headers=headers, follow_redirects=True) as client:
+                        resp = client.get(info["url"], timeout=15.0)
+                        resp.raise_for_status()
+            except Exception as e:
+                is_healthy = 0
+                error_msg = str(e)
+                
+            # Update DB
+            status_record = db.query(ApiStatus).filter(ApiStatus.api_name == name).first()
+            now = datetime.utcnow()
+            if status_record:
+                if status_record.is_healthy != is_healthy:
+                    status_record.last_status_change = now
+                status_record.is_healthy = is_healthy
+                status_record.last_checked = now
+                status_record.error_message = error_msg
+            else:
+                new_status = ApiStatus(
+                    api_name=name,
+                    is_healthy=is_healthy,
+                    last_checked=now,
+                    last_status_change=now,
+                    error_message=error_msg
+                )
+                db.add(new_status)
+        db.commit()
+    except Exception as e:
+        print(f"Health check failed: {e}")
+    finally:
+        db.close()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Start the scheduler when app starts
     scheduler = BackgroundScheduler()
     scheduler.add_job(scrape_all, 'interval', hours=12)
+    scheduler.add_job(check_api_health, 'interval', minutes=15)
     scheduler.start()
     
     # Run once at startup as well
     scrape_all()
+    check_api_health()
     
     yield
     # Shutdown the scheduler when app stops
@@ -158,6 +220,57 @@ async def get_stats():
                 for log in logs
             ]
         })
+    finally:
+        db.close()
+
+@app.get("/status", response_class=HTMLResponse)
+async def read_status(request: Request):
+    if not request.session.get("authenticated"):
+        return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+        
+    return templates.TemplateResponse(
+        request=request, 
+        name="status.html", 
+        context={}
+    )
+
+@app.get("/api/status", dependencies=[Depends(require_auth)])
+async def get_status():
+    db = SessionLocal()
+    try:
+        # DB check (if we get here, DB connection works)
+        db_status = True
+        
+        # Last Cron job check
+        last_log = db.query(ScrapeLog).order_by(ScrapeLog.timestamp.desc()).first()
+        last_sync_time = last_log.timestamp.isoformat() if last_log else None
+        
+        cron_status = False
+        import datetime as dt
+        if last_log:
+            time_diff = dt.datetime.utcnow() - last_log.timestamp
+            cron_status = time_diff.total_seconds() < 86400 # 24 hours
+            
+        # Get all API statuses
+        apis = db.query(ApiStatus).all()
+        api_list = []
+        for api in apis:
+            api_list.append({
+                "api_name": api.api_name,
+                "is_healthy": bool(api.is_healthy),
+                "last_checked": api.last_checked.isoformat() if api.last_checked else None,
+                "last_status_change": api.last_status_change.isoformat() if api.last_status_change else None,
+                "error_message": api.error_message
+            })
+            
+        return JSONResponse(content={
+            "db_status": db_status,
+            "cron_status": cron_status,
+            "last_sync_time": last_sync_time,
+            "api_statuses": api_list
+        })
+    except Exception as e:
+        return JSONResponse(content={"error": str(e)}, status_code=500)
     finally:
         db.close()
 

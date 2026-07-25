@@ -24,3 +24,12 @@ class ScrapeLog(Base):
     total_found = Column(Integer, default=0)
     online_filtered = Column(Integer, default=0)
     saved_to_db = Column(Integer, default=0)
+
+class ApiStatus(Base):
+    __tablename__ = "api_status"
+
+    api_name = Column(String, primary_key=True, index=True)
+    is_healthy = Column(Integer, default=1)
+    last_checked = Column(DateTime, default=datetime.datetime.utcnow)
+    last_status_change = Column(DateTime, default=datetime.datetime.utcnow)
+    error_message = Column(String, nullable=True)
