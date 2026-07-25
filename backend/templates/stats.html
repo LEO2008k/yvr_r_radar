@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YVR Radar - Statistics</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen p-8 font-sans">
+
+    <div class="max-w-4xl mx-auto">
+        <div class="flex justify-between items-center mb-8">
+            <h1 class="text-3xl font-bold text-emerald-400">YVR Radar Statistics</h1>
+            <a href="/" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">
+                ← Back to Map
+            </a>
+        </div>
+
+        <!-- Today's Stats -->
+        <div class="bg-gray-800 rounded-xl shadow-lg p-6 mb-8 border border-gray-700">
+            <h2 class="text-xl font-semibold mb-2 text-gray-300">Today's Radar</h2>
+            <div class="flex items-end space-x-4">
+                <span id="events-today" class="text-5xl font-black text-emerald-500">...</span>
+                <span class="text-lg text-gray-400 pb-1">events scheduled for today</span>
+            </div>
+        </div>
+
+        <!-- Scrape Logs -->
+        <div class="bg-gray-800 rounded-xl shadow-lg border border-gray-700 overflow-hidden">
+            <div class="p-6 border-b border-gray-700 bg-gray-800">
+                <h2 class="text-xl font-semibold text-gray-300">Scraping History (Last 10 Runs)</h2>
+                <p class="text-sm text-gray-500">Shows how many events were found, filtered out, and successfully saved.</p>
+            </div>
+            
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-gray-900 text-gray-400 text-sm">
+                            <th class="py-4 px-6 font-semibold">Run Time</th>
+                            <th class="py-4 px-6 font-semibold text-center">Total Found</th>
+                            <th class="py-4 px-6 font-semibold text-center text-red-400">Filtered Out (Online)</th>
+                            <th class="py-4 px-6 font-semibold text-center text-emerald-400">Saved to Map</th>
+                        </tr>
+                    </thead>
+                    <tbody id="logs-tbody" class="divide-y divide-gray-700">
+                        <tr>
+                            <td colspan="4" class="py-8 text-center text-gray-500">Loading data...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function fetchStats() {
+            try {
+                const res = await fetch('/api/stats');
+                const data = await res.json();
+                
+                document.getElementById('events-today').innerText = data.events_today;
+                
+                const tbody = document.getElementById('logs-tbody');
+                if (data.logs.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="4" class="py-8 text-center text-gray-500">No scrape logs yet. (Wait for the next background run)</td></tr>`;
+                    return;
+                }
+                
+                tbody.innerHTML = '';
+                data.logs.forEach(log => {
+                    const date = new Date(log.timestamp).toLocaleString();
+                    const tr = document.createElement('tr');
+                    tr.className = "hover:bg-gray-800 transition-colors";
+                    tr.innerHTML = `
+                        <td class="py-4 px-6 whitespace-nowrap">${date}</td>
+                        <td class="py-4 px-6 text-center font-semibold">${log.total_found}</td>
+                        <td class="py-4 px-6 text-center font-semibold text-red-400">${log.online_filtered}</td>
+                        <td class="py-4 px-6 text-center font-semibold text-emerald-400">${log.saved_to_db}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+                
+            } catch (err) {
+                console.error("Error fetching stats:", err);
+                document.getElementById('events-today').innerText = "Error";
+                document.getElementById('logs-tbody').innerHTML = `<tr><td colspan="4" class="py-8 text-center text-red-500">Failed to load data.</td></tr>`;
+            }
+        }
+        
+        fetchStats();
+    </script>
+</body>
+</html>

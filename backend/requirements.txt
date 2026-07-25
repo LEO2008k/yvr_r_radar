@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+sqlalchemy
+psycopg2-binary
+pydantic
+httpx
+beautifulsoup4
+jinja2
+python-multipart
+itsdangerous
+apscheduler

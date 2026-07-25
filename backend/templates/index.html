@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YVR Rideshare Radar - Map</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body, html { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; }
+        #map { height: 100vh; width: 100vw; }
+        #theme-toggle {
+            position: absolute;
+            top: 20px;
+            right: 60px; /* Leave space for Google Maps UI */
+            z-index: 1000;
+            background: white;
+            color: black;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-weight: bold;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        #theme-toggle.dark-mode {
+            background: #1f2937;
+            color: #f3f4f6;
+        }
+        #filters {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        #filters button {
+            margin-right: 5px;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            border: 1px solid #ccc;
+        }
+        #filters button.active {
+            background: #3b82f6;
+            color: white;
+            border-color: #2563eb;
+        }
+    </style>
+</head>
+<body class="bg-gray-900">
+
+    <button id="theme-toggle" class="dark-mode">☀️ Light Mode</button>
+    <div id="filters">
+        <div class="mb-2">
+            <span class="font-bold text-sm text-gray-800 mr-2">Events:</span>
+            <button class="filter-btn active" data-source="All">All Events</button>
+            <button class="filter-btn" data-source="Luma">Luma</button>
+            <button class="filter-btn" data-source="Meetup">Meetup</button>
+            <button class="filter-btn" data-source="AllEvents">AllEvents</button>
+        </div>
+        <div>
+            <span class="font-bold text-sm text-gray-800 mr-2">Map POIs:</span>
+            <button class="poi-btn active" data-poi="poi.park">Parks</button>
+            <button class="poi-btn active" data-poi="poi.business">Hotels/Business</button>
+            <button class="poi-btn active" data-poi="poi.attraction">Museums</button>
+        </div>
+        <div class="mt-2 text-right">
+            <a href="/stats" class="text-sm text-blue-600 font-bold hover:underline">View Stats ↗</a>
+        </div>
+        <div class="mt-4 border-t border-gray-300 pt-4">
+            <span class="font-bold text-sm text-gray-800 block mb-2">Time Filter: <span id="current-date-label" class="text-emerald-600">Loading...</span></span>
+            <input type="range" id="time-slider" class="w-full" min="0" max="0" value="0">
+        </div>
+    </div>
+    <div id="map"></div>
+
+    <script>
+        let map;
+        let isDarkMode = true;
+        let allMarkers = [];
+        let allCircles = [];
+        let currentSource = 'All';
+        let currentDate = null;
+
+        const darkMapStyle = [
+            {elementType: "geometry", stylers: [{color: "#242f3e"}]},
+            {elementType: "labels.text.stroke", stylers: [{color: "#242f3e"}]},
+            {elementType: "labels.text.fill", stylers: [{color: "#746855"}]},
+            {featureType: "administrative.locality", elementType: "labels.text.fill", stylers: [{color: "#d59563"}]},
+            {featureType: "poi", elementType: "labels.text.fill", stylers: [{color: "#d59563"}]},
+            {featureType: "poi.park", elementType: "geometry", stylers: [{color: "#263c3f"}]},
+            {featureType: "poi.park", elementType: "labels.text.fill", stylers: [{color: "#6b9a76"}]},
+            {featureType: "road", elementType: "geometry", stylers: [{color: "#38414e"}]},
+            {featureType: "road", elementType: "geometry.stroke", stylers: [{color: "#212a37"}]},
+            {featureType: "road", elementType: "labels.text.fill", stylers: [{color: "#9ca5b3"}]},
+            {featureType: "road.highway", elementType: "geometry", stylers: [{color: "#746855"}]},
+            {featureType: "road.highway", elementType: "geometry.stroke", stylers: [{color: "#1f2835"}]},
+            {featureType: "road.highway", elementType: "labels.text.fill", stylers: [{color: "#f3d19c"}]},
+            {featureType: "transit", elementType: "geometry", stylers: [{color: "#2f3948"}]},
+            {featureType: "transit.station", elementType: "labels.text.fill", stylers: [{color: "#d59563"}]},
+            {featureType: "water", elementType: "geometry", stylers: [{color: "#17263c"}]},
+            {featureType: "water", elementType: "labels.text.fill", stylers: [{color: "#515c6d"}]},
+            {featureType: "water", elementType: "labels.text.stroke", stylers: [{color: "#17263c"}]}
+        ];
+
+        const lightMapStyle = []; // Empty array means default Google Maps light style
+
+        async function fetchEvents() {
+            try {
+                const response = await fetch('/api/events');
+                const events = await response.json();
+                return events;
+            } catch (error) {
+                console.error("Error fetching events:", error);
+                return [];
+            }
+        }
+
+        // Toggle Button Logic
+        const toggleBtn = document.getElementById('theme-toggle');
+        toggleBtn.addEventListener('click', () => {
+            isDarkMode = !isDarkMode;
+            applyMapStyles();
+            if (isDarkMode) {
+                toggleBtn.className = 'dark-mode';
+                toggleBtn.innerHTML = '☀️ Light Mode';
+            } else {
+                toggleBtn.className = 'light-mode';
+                toggleBtn.innerHTML = '🌙 Dark Mode';
+            }
+        });
+
+        // State for POIs
+        const poiVisibility = {
+            'poi.park': true,
+            'poi.business': true,
+            'poi.attraction': true
+        };
+
+        function applyMapStyles() {
+            if (!map) return;
+            
+            // Base style
+            let currentStyles = isDarkMode ? [...darkMapStyle] : [...lightMapStyle];
+            
+            // Apply POI visibility
+            for (const [poiType, isVisible] of Object.entries(poiVisibility)) {
+                currentStyles.push({
+                    featureType: poiType,
+                    stylers: [{ visibility: isVisible ? "on" : "off" }]
+                });
+            }
+            
+            map.setOptions({ styles: currentStyles });
+        }
+
+        async function initMap() {
+            const vancouver = { lat: 49.2827, lng: -123.1207 };
+            
+            map = new google.maps.Map(document.getElementById("map"), {
+                zoom: 13,
+                center: vancouver,
+                disableDefaultUI: false,
+                mapTypeControl: false,
+                streetViewControl: false
+            });
+            applyMapStyles();
+
+            const events = await fetchEvents();
+            const infoWindow = new google.maps.InfoWindow();
+
+            events.forEach(event => {
+                let iconUrl = "http://maps.google.com/mapfiles/ms/icons/red-dot.png"; // Default Meetup
+                let highlightColor = "#FF0000";
+                
+                if (event.source === "Luma") {
+                    iconUrl = "http://maps.google.com/mapfiles/ms/icons/blue-dot.png";
+                    highlightColor = "#0000FF";
+                } else if (event.source === "Meetup") {
+                    iconUrl = "http://maps.google.com/mapfiles/ms/icons/red-dot.png";
+                    highlightColor = "#FF0000";
+                } else if (event.source === "AllEvents") {
+                    iconUrl = "http://maps.google.com/mapfiles/ms/icons/green-dot.png";
+                    highlightColor = "#00FF00";
+                }
+
+                // Add Highlight Circle based on attendees_count
+                const radius = Math.min(Math.max(event.attendees_count * 2, 50), 500); // Between 50m and 500m
+                const circle = new google.maps.Circle({
+                    strokeColor: highlightColor,
+                    strokeOpacity: 0.8,
+                    strokeWeight: 2,
+                    fillColor: highlightColor,
+                    fillOpacity: 0.35,
+                    map: map,
+                    center: { lat: event.lat, lng: event.lng },
+                    radius: radius,
+                });
+                circle.source = event.source;
+                circle.date = event.time.split('T')[0];
+                allCircles.push(circle);
+
+                const marker = new google.maps.Marker({
+                    position: { lat: event.lat, lng: event.lng },
+                    map: map,
+                    title: event.title,
+                    icon: iconUrl
+                });
+                marker.source = event.source;
+                marker.date = event.time.split('T')[0];
+                allMarkers.push(marker);
+
+                marker.addListener("click", () => {
+                    const timeStr = event.end_time ? `${event.time} - ${event.end_time.split('T')[1] || event.end_time}` : event.time;
+                    const urlStr = event.event_url ? `<a href="${event.event_url}" target="_blank" class="text-blue-500 underline mt-2 block">View Event Details</a>` : '';
+                    
+                    const contentString = `
+                        <div class="p-2 text-gray-800">
+                            <span class="inline-block bg-gray-200 rounded-full px-3 py-1 text-sm font-semibold text-gray-700 mb-2">${event.source}</span>
+                            <h2 class="text-lg font-bold">${event.title}</h2>
+                            <p class="text-sm mb-1 font-semibold text-indigo-600">👥 Attendees: ${event.attendees_count || 'Unknown'}</p>
+                            <p class="text-sm mb-1">⏰ ${timeStr}</p>
+                            <p class="text-xs text-gray-500 mb-3">📍 ${event.address}</p>
+                            ${urlStr}
+                            <a href="https://www.google.com/maps/dir/?api=1&destination=${event.lat},${event.lng}" target="_blank" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-1 px-3 mt-2 rounded inline-block">
+                                Navigate ↗
+                            </a>
+                        </div>
+                    `;
+                    infoWindow.setContent(contentString);
+                    infoWindow.open({
+                        anchor: marker,
+                        map,
+                        shouldFocus: false,
+                    });
+                });
+            });
+
+            function applyFilters() {
+                allMarkers.forEach(marker => {
+                    const sourceMatch = (currentSource === 'All' || marker.source === currentSource);
+                    const dateMatch = (currentDate === null || marker.date === currentDate);
+                    marker.setMap(sourceMatch && dateMatch ? map : null);
+                });
+                
+                allCircles.forEach(circle => {
+                    const sourceMatch = (currentSource === 'All' || circle.source === currentSource);
+                    const dateMatch = (currentDate === null || circle.date === currentDate);
+                    circle.setMap(sourceMatch && dateMatch ? map : null);
+                });
+            }
+
+            // Filter logic
+            const savedSource = localStorage.getItem('yvr_currentSource');
+            if (savedSource) {
+                currentSource = savedSource;
+            }
+
+            const filterBtns = document.querySelectorAll('.filter-btn');
+            filterBtns.forEach(btn => {
+                if (btn.getAttribute('data-source') === currentSource) {
+                    filterBtns.forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                }
+
+                btn.addEventListener('click', (e) => {
+                    // Update active class
+                    filterBtns.forEach(b => b.classList.remove('active'));
+                    e.target.classList.add('active');
+                    
+                    currentSource = e.target.getAttribute('data-source');
+                    localStorage.setItem('yvr_currentSource', currentSource);
+                    applyFilters();
+                });
+            });
+
+            // Date Slider logic
+            const uniqueDates = [...new Set(events.map(ev => ev.time.split('T')[0]))].sort();
+            const slider = document.getElementById('time-slider');
+            const dateLabel = document.getElementById('current-date-label');
+            
+            if (uniqueDates.length > 0) {
+                slider.max = uniqueDates.length - 1;
+                
+                const todayStr = new Date().toISOString().split('T')[0];
+                let defaultIndex = uniqueDates.indexOf(todayStr);
+                
+                // If today is not in the list, just pick the first date or the closest
+                if (defaultIndex === -1) {
+                    defaultIndex = uniqueDates.findIndex(d => d > todayStr);
+                    if (defaultIndex === -1) defaultIndex = uniqueDates.length - 1; // all in past
+                }
+                
+                slider.value = defaultIndex;
+                currentDate = uniqueDates[defaultIndex];
+                dateLabel.innerText = currentDate;
+                
+                slider.addEventListener('input', (e) => {
+                    const idx = parseInt(e.target.value);
+                    currentDate = uniqueDates[idx];
+                    dateLabel.innerText = currentDate;
+                    applyFilters();
+                });
+                
+                // Initial filter apply
+                applyFilters();
+            } else {
+                slider.disabled = true;
+                dateLabel.innerText = "No events";
+            }
+
+            // POI Filter logic
+            const savedPoi = localStorage.getItem('yvr_poiVisibility');
+            if (savedPoi) {
+                Object.assign(poiVisibility, JSON.parse(savedPoi));
+            }
+
+            const poiBtns = document.querySelectorAll('.poi-btn');
+            poiBtns.forEach(btn => {
+                const poiType = btn.getAttribute('data-poi');
+                if (poiVisibility[poiType]) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+
+                btn.addEventListener('click', (e) => {
+                    poiVisibility[poiType] = !poiVisibility[poiType];
+                    localStorage.setItem('yvr_poiVisibility', JSON.stringify(poiVisibility));
+                    
+                    if (poiVisibility[poiType]) {
+                        e.target.classList.add('active');
+                    } else {
+                        e.target.classList.remove('active');
+                    }
+                    
+                    applyMapStyles();
+                });
+            });
+        }
+    </script>
+    <script src="https://maps.googleapis.com/maps/api/js?key={{ GOOGLE_MAPS_API_KEY }}&callback=initMap" async defer></script>
+</body>
+</html>
