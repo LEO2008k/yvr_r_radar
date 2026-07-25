@@ -89,8 +89,14 @@
             <a href="/stats" class="text-sm text-blue-600 font-bold hover:underline">View Stats ↗</a>
         </div>
         <div class="mt-4 border-t border-gray-300 pt-4">
-            <span class="font-bold text-sm text-gray-800 block mb-2">Time Filter: <span id="current-date-label" class="text-emerald-600">Loading...</span></span>
-            <input type="range" id="time-slider" class="w-full" min="0" max="0" value="0">
+            <div class="flex justify-between items-center mb-2">
+                <span class="font-bold text-sm text-gray-800">Time Filter: <span id="current-date-label" class="text-emerald-600">Loading...</span></span>
+                <button id="btn-today" class="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded hover:bg-blue-200 hidden">Reset to Today</button>
+            </div>
+            <div class="relative w-full" id="slider-container">
+                <input type="range" id="time-slider" class="w-full" min="0" max="0" value="0">
+                <div id="today-marker" class="absolute w-1 h-3 bg-red-500 rounded hidden" style="top: 8px; pointer-events: none;"></div>
+            </div>
             <div class="text-xs text-gray-500 mt-2 text-right" id="last-sync-label">Last Synced: Loading...</div>
         </div>
     </div>
@@ -323,32 +329,58 @@
             const uniqueDates = [...new Set(events.map(ev => ev.time.split('T')[0]))].sort();
             const slider = document.getElementById('time-slider');
             const dateLabel = document.getElementById('current-date-label');
+            const todayMarker = document.getElementById('today-marker');
+            const btnToday = document.getElementById('btn-today');
             
             if (uniqueDates.length > 0) {
                 slider.max = uniqueDates.length - 1;
                 
-                const todayStr = new Date().toISOString().split('T')[0];
+                // Determine user's local timezone date string
+                const now = new Date();
+                const offset = now.getTimezoneOffset() * 60000;
+                const localISOTime = (new Date(now - offset)).toISOString().slice(0, -1);
+                const todayStr = localISOTime.split('T')[0];
+
                 let defaultIndex = uniqueDates.indexOf(todayStr);
                 
-                // If today is not in the list, just pick the first date or the closest
+                // If today is not in the list, just pick the closest future date
                 if (defaultIndex === -1) {
                     defaultIndex = uniqueDates.findIndex(d => d > todayStr);
                     if (defaultIndex === -1) defaultIndex = uniqueDates.length - 1; // all in past
                 }
                 
-                slider.value = defaultIndex;
-                currentDate = uniqueDates[defaultIndex];
-                dateLabel.innerText = currentDate;
+                // Position the today marker visually
+                if (uniqueDates.length > 1) {
+                    const percentage = (defaultIndex / (uniqueDates.length - 1)) * 100;
+                    todayMarker.style.left = `calc(${percentage}% - 2px)`; // subtract half width
+                    todayMarker.classList.remove('hidden');
+                    btnToday.classList.remove('hidden');
+                }
+
+                const setSliderToIndex = (idx) => {
+                    slider.value = idx;
+                    currentDate = uniqueDates[idx];
+                    dateLabel.innerText = currentDate;
+                    
+                    // Highlight if it's today
+                    if (idx === defaultIndex) {
+                        dateLabel.innerHTML = `${currentDate} <span class="text-xs text-red-500 font-bold ml-1">(Today)</span>`;
+                    }
+                    applyFilters();
+                };
+
+                // Initialize
+                setSliderToIndex(defaultIndex);
                 
                 slider.addEventListener('input', (e) => {
                     const idx = parseInt(e.target.value);
-                    currentDate = uniqueDates[idx];
-                    dateLabel.innerText = currentDate;
-                    applyFilters();
+                    setSliderToIndex(idx);
+                });
+
+                btnToday.addEventListener('click', () => {
+                    setSliderToIndex(defaultIndex);
                 });
                 
-                // Initial filter apply
-                applyFilters();
             } else {
                 slider.disabled = true;
                 dateLabel.innerText = "No events";
