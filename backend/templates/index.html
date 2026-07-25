@@ -27,24 +27,9 @@
             background: #1f2937;
             color: #f3f4f6;
         }
+        /* Settings Panel Styling */
         #filters {
-            position: absolute;
-            top: 10px;
-            left: 10px;
-            z-index: 1000;
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(4px);
-            padding: 12px;
-            border-radius: 8px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
-            width: calc(100vw - 20px);
-            max-width: 400px;
-            max-height: calc(100vh - 80px);
-            overflow-y: auto;
-            transition: max-height 0.3s ease;
-        }
-        #filters.collapsed #filters-content {
-            display: none;
+            transition: opacity 0.2s ease-in-out;
         }
         #filters button {
             padding: 4px 10px;
@@ -61,15 +46,15 @@
             border-color: #2563eb;
         }
         #filters button.active.btn-luma {
-            background: #8b5cf6; /* purple */
+            background: #8b5cf6;
             border-color: #7c3aed;
         }
         #filters button.active.btn-meetup {
-            background: #ef4444; /* red */
+            background: #ef4444;
             border-color: #dc2626;
         }
         #filters button.active.btn-allevents {
-            background: #10b981; /* green */
+            background: #10b981;
             border-color: #059669;
         }
         /* Mobile slider touch tweaks */
@@ -83,10 +68,16 @@
 
     <button id="theme-toggle" class="dark-mode">☀️ Light</button>
     
-    <div id="filters">
+    <!-- Mobile Menu Toggle Button (Floating) -->
+    <button id="mobile-menu-btn" class="sm:hidden absolute top-[10px] left-[10px] z-[1000] bg-white/95 backdrop-blur-sm text-gray-800 px-3 py-2 rounded-lg shadow-md font-bold text-sm border border-gray-200">
+        ⚙️ Filters & Settings
+    </button>
+    
+    <!-- Settings Panel (Hidden on mobile by default) -->
+    <div id="filters" class="hidden sm:block absolute top-[50px] sm:top-[10px] left-[10px] z-[1000] bg-white/95 backdrop-blur-sm p-3 rounded-lg shadow-md w-[calc(100vw-20px)] sm:w-auto max-w-[400px] max-h-[60vh] overflow-y-auto">
         <div class="flex justify-between items-center sm:hidden mb-2 border-b border-gray-200 pb-2">
             <span class="font-bold text-gray-800">Map Controls</span>
-            <button id="toggle-filters-btn" class="text-sm font-bold text-blue-600 bg-transparent border-none shadow-none px-0" style="border:none; padding:0; box-shadow:none;">Collapse 🔼</button>
+            <button id="close-menu-btn" class="text-sm font-bold text-red-600 bg-transparent border-none shadow-none px-0" style="border:none; padding:0; box-shadow:none;">Close ❌</button>
         </div>
         
         <div id="filters-content">
@@ -104,7 +95,7 @@
                 <span class="font-bold text-sm text-gray-800 block mb-1">Map POIs:</span>
                 <div class="flex flex-wrap gap-2">
                     <button class="poi-btn active" data-poi="poi.park">Parks</button>
-                    <button class="poi-btn active" data-poi="poi.business">Parking / Gas / Business</button>
+                    <button class="poi-btn active" data-poi="poi.business">Parking / Gas</button>
                     <button class="poi-btn active" data-poi="poi.attraction">Attractions</button>
                 </div>
             </div>
@@ -113,27 +104,29 @@
                 <span class="font-bold text-sm text-gray-800 block mb-1">Layers:</span>
                 <div class="flex flex-wrap gap-2">
                     <button id="btn-traffic" class="filter-btn">🚗 Traffic</button>
-                    <button id="btn-satellite" class="filter-btn">🌍 Satellite View</button>
+                    <button id="btn-satellite" class="filter-btn">🌍 Satellite</button>
                 </div>
             </div>
             
-            <div class="mb-3 text-right flex justify-end space-x-4">
+            <div class="text-right flex justify-end space-x-4">
                 <a href="/status" class="text-sm text-emerald-600 font-bold hover:underline">System Health 🩺</a>
                 <a href="/stats" class="text-sm text-blue-600 font-bold hover:underline">View Stats ↗</a>
             </div>
-            
-            <div class="border-t border-gray-300 pt-3 mt-2">
-                <div class="flex justify-between items-center mb-2">
-                    <span class="font-bold text-sm text-gray-800">Timeline: <span id="current-date-label" class="text-emerald-600">Loading...</span></span>
-                    <button id="btn-today" class="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded hover:bg-blue-200 hidden border-none" style="border:none;">Today</button>
-                </div>
-                <div class="relative w-full py-2" id="slider-container">
-                    <input type="range" id="time-slider" class="w-full cursor-pointer" min="0" max="0" value="0">
-                    <div id="today-marker" class="absolute w-1 h-3 bg-red-500 rounded hidden" style="top: 12px; pointer-events: none;"></div>
-                </div>
-                <div class="text-xs text-gray-500 text-right mt-1" id="last-sync-label">Last Synced: Loading...</div>
-            </div>
+            <div class="sm:hidden text-xs text-gray-500 text-center mt-3 pt-2 border-t border-gray-200" id="last-sync-label-mobile">Last Synced: Loading...</div>
         </div>
+    </div>
+    
+    <!-- Timeline Bottom Bar -->
+    <div id="bottom-bar" class="absolute bottom-0 left-0 right-0 z-[1000] bg-white/95 backdrop-blur-sm p-3 sm:px-6 border-t border-gray-200 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] flex flex-col sm:flex-row items-center gap-2 sm:gap-6">
+        <div class="flex justify-between items-center w-full sm:w-auto min-w-[150px]">
+            <span class="font-bold text-sm text-gray-800 mr-2">Time: <span id="current-date-label" class="text-emerald-600">Loading...</span></span>
+            <button id="btn-today" class="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded hover:bg-blue-200 hidden border-none" style="border:none;">Today</button>
+        </div>
+        <div class="relative w-full flex-grow py-2 sm:py-0" id="slider-container">
+            <input type="range" id="time-slider" class="w-full cursor-pointer" min="0" max="0" value="0">
+            <div id="today-marker" class="absolute w-1 h-3 bg-red-500 rounded hidden" style="top: 12px; pointer-events: none;"></div>
+        </div>
+        <div class="hidden sm:block text-xs text-gray-500 whitespace-nowrap min-w-[180px] text-right" id="last-sync-label">Last Synced: Loading...</div>
     </div>
     
     <div id="map"></div>
@@ -369,20 +362,19 @@
         const todayMarker = document.getElementById('today-marker');
         const btnToday = document.getElementById('btn-today');
 
-        // Toggle mobile filters
-        const toggleFiltersBtn = document.getElementById('toggle-filters-btn');
+        // Toggle mobile filters menu
+        const mobileMenuBtn = document.getElementById('mobile-menu-btn');
+        const closeMenuBtn = document.getElementById('close-menu-btn');
         const filtersContainer = document.getElementById('filters');
         
-        if (toggleFiltersBtn) {
-            toggleFiltersBtn.addEventListener('click', () => {
-                const isCollapsed = filtersContainer.classList.contains('collapsed');
-                if (isCollapsed) {
-                    filtersContainer.classList.remove('collapsed');
-                    toggleFiltersBtn.textContent = 'Collapse 🔼';
-                } else {
-                    filtersContainer.classList.add('collapsed');
-                    toggleFiltersBtn.textContent = 'Expand 🔽';
-                }
+        if (mobileMenuBtn && closeMenuBtn && filtersContainer) {
+            mobileMenuBtn.addEventListener('click', () => {
+                filtersContainer.classList.remove('hidden');
+                mobileMenuBtn.classList.add('hidden'); // hide the floating button while menu is open
+            });
+            closeMenuBtn.addEventListener('click', () => {
+                filtersContainer.classList.add('hidden');
+                mobileMenuBtn.classList.remove('hidden');
             });
         }
             
