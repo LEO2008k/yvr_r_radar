@@ -10,14 +10,15 @@
         #map { height: 100vh; width: 100vw; }
         #theme-toggle {
             position: absolute;
-            top: 20px;
-            right: 60px; /* Leave space for Google Maps UI */
+            top: 10px;
+            right: 10px;
             z-index: 1000;
             background: white;
             color: black;
-            padding: 8px 16px;
+            padding: 6px 12px;
             border-radius: 8px;
             font-weight: bold;
+            font-size: 14px;
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
             cursor: pointer;
             transition: all 0.3s ease;
@@ -28,21 +29,31 @@
         }
         #filters {
             position: absolute;
-            top: 20px;
-            left: 20px;
+            top: 10px;
+            left: 10px;
             z-index: 1000;
-            background: rgba(255, 255, 255, 0.9);
-            padding: 10px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(4px);
+            padding: 12px;
             border-radius: 8px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+            width: calc(100vw - 20px);
+            max-width: 400px;
+            max-height: calc(100vh - 80px);
+            overflow-y: auto;
+            transition: max-height 0.3s ease;
+        }
+        #filters.collapsed #filters-content {
+            display: none;
         }
         #filters button {
-            margin-right: 5px;
-            padding: 6px 12px;
+            padding: 4px 10px;
             border-radius: 4px;
             cursor: pointer;
             font-weight: bold;
+            font-size: 13px;
             border: 1px solid #ccc;
+            white-space: nowrap;
         }
         #filters button.active {
             background: #3b82f6;
@@ -61,46 +72,70 @@
             background: #10b981; /* green */
             border-color: #059669;
         }
+        /* Mobile slider touch tweaks */
+        input[type=range] {
+            accent-color: #059669;
+            height: 6px;
+        }
     </style>
 </head>
 <body class="bg-gray-900">
 
-    <button id="theme-toggle" class="dark-mode">☀️ Light Mode</button>
+    <button id="theme-toggle" class="dark-mode">☀️ Light</button>
+    
     <div id="filters">
-        <div class="mb-2">
-            <span class="font-bold text-sm text-gray-800 mr-2">Events:</span>
-            <button class="filter-btn active" data-source="All">All Events</button>
-            <button class="filter-btn btn-luma" data-source="Luma">Luma</button>
-            <button class="filter-btn btn-meetup" data-source="Meetup">Meetup</button>
-            <button class="filter-btn btn-allevents" data-source="AllEvents">AllEvents</button>
+        <div class="flex justify-between items-center sm:hidden mb-2 border-b border-gray-200 pb-2">
+            <span class="font-bold text-gray-800">Map Controls</span>
+            <button id="toggle-filters-btn" class="text-sm font-bold text-blue-600 bg-transparent border-none shadow-none px-0" style="border:none; padding:0; box-shadow:none;">Collapse 🔼</button>
         </div>
-        <div>
-            <span class="font-bold text-sm text-gray-800 mr-2">Map POIs:</span>
-            <button class="poi-btn active" data-poi="poi.park">Parks</button>
-            <button class="poi-btn active" data-poi="poi.business">Parking / Gas / Business</button>
-            <button class="poi-btn active" data-poi="poi.attraction">Attractions</button>
-        </div>
-        <div class="mt-2">
-            <span class="font-bold text-sm text-gray-800 mr-2">Layers:</span>
-            <button id="btn-traffic" class="filter-btn">🚗 Traffic</button>
-            <button id="btn-satellite" class="filter-btn">🌍 Satellite View</button>
-        </div>
-        <div class="mt-2 text-right flex justify-end space-x-4">
-            <a href="/status" class="text-sm text-emerald-600 font-bold hover:underline">System Health 🩺</a>
-            <a href="/stats" class="text-sm text-blue-600 font-bold hover:underline">View Stats ↗</a>
-        </div>
-        <div class="mt-4 border-t border-gray-300 pt-4">
-            <div class="flex justify-between items-center mb-2">
-                <span class="font-bold text-sm text-gray-800">Time Filter: <span id="current-date-label" class="text-emerald-600">Loading...</span></span>
-                <button id="btn-today" class="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded hover:bg-blue-200 hidden">Reset to Today</button>
+        
+        <div id="filters-content">
+            <div class="mb-3">
+                <span class="font-bold text-sm text-gray-800 block mb-1">Events:</span>
+                <div class="flex flex-wrap gap-2">
+                    <button class="filter-btn active" data-source="All">All Events</button>
+                    <button class="filter-btn btn-luma" data-source="Luma">Luma</button>
+                    <button class="filter-btn btn-meetup" data-source="Meetup">Meetup</button>
+                    <button class="filter-btn btn-allevents" data-source="AllEvents">AllEvents</button>
+                </div>
             </div>
-            <div class="relative w-full" id="slider-container">
-                <input type="range" id="time-slider" class="w-full" min="0" max="0" value="0">
-                <div id="today-marker" class="absolute w-1 h-3 bg-red-500 rounded hidden" style="top: 8px; pointer-events: none;"></div>
+            
+            <div class="mb-3">
+                <span class="font-bold text-sm text-gray-800 block mb-1">Map POIs:</span>
+                <div class="flex flex-wrap gap-2">
+                    <button class="poi-btn active" data-poi="poi.park">Parks</button>
+                    <button class="poi-btn active" data-poi="poi.business">Parking / Gas / Business</button>
+                    <button class="poi-btn active" data-poi="poi.attraction">Attractions</button>
+                </div>
             </div>
-            <div class="text-xs text-gray-500 mt-2 text-right" id="last-sync-label">Last Synced: Loading...</div>
+            
+            <div class="mb-3">
+                <span class="font-bold text-sm text-gray-800 block mb-1">Layers:</span>
+                <div class="flex flex-wrap gap-2">
+                    <button id="btn-traffic" class="filter-btn">🚗 Traffic</button>
+                    <button id="btn-satellite" class="filter-btn">🌍 Satellite View</button>
+                </div>
+            </div>
+            
+            <div class="mb-3 text-right flex justify-end space-x-4">
+                <a href="/status" class="text-sm text-emerald-600 font-bold hover:underline">System Health 🩺</a>
+                <a href="/stats" class="text-sm text-blue-600 font-bold hover:underline">View Stats ↗</a>
+            </div>
+            
+            <div class="border-t border-gray-300 pt-3 mt-2">
+                <div class="flex justify-between items-center mb-2">
+                    <span class="font-bold text-sm text-gray-800">Timeline: <span id="current-date-label" class="text-emerald-600">Loading...</span></span>
+                    <button id="btn-today" class="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded hover:bg-blue-200 hidden border-none" style="border:none;">Today</button>
+                </div>
+                <div class="relative w-full py-2" id="slider-container">
+                    <input type="range" id="time-slider" class="w-full cursor-pointer" min="0" max="0" value="0">
+                    <div id="today-marker" class="absolute w-1 h-3 bg-red-500 rounded hidden" style="top: 12px; pointer-events: none;"></div>
+                </div>
+                <div class="text-xs text-gray-500 text-right mt-1" id="last-sync-label">Last Synced: Loading...</div>
+            </div>
         </div>
     </div>
+    
     <div id="map"></div>
 
     <script>
@@ -328,10 +363,28 @@
 
             // Date Slider logic
             const uniqueDates = [...new Set(events.map(ev => ev.time.split('T')[0]))].sort();
-            const slider = document.getElementById('time-slider');
-            const dateLabel = document.getElementById('current-date-label');
-            const todayMarker = document.getElementById('today-marker');
-            const btnToday = document.getElementById('btn-today');
+        // Timeline interaction logic
+        const slider = document.getElementById('time-slider');
+        const dateLabel = document.getElementById('current-date-label');
+        const todayMarker = document.getElementById('today-marker');
+        const btnToday = document.getElementById('btn-today');
+
+        // Toggle mobile filters
+        const toggleFiltersBtn = document.getElementById('toggle-filters-btn');
+        const filtersContainer = document.getElementById('filters');
+        
+        if (toggleFiltersBtn) {
+            toggleFiltersBtn.addEventListener('click', () => {
+                const isCollapsed = filtersContainer.classList.contains('collapsed');
+                if (isCollapsed) {
+                    filtersContainer.classList.remove('collapsed');
+                    toggleFiltersBtn.textContent = 'Collapse 🔼';
+                } else {
+                    filtersContainer.classList.add('collapsed');
+                    toggleFiltersBtn.textContent = 'Expand 🔽';
+                }
+            });
+        }
             
             if (uniqueDates.length > 0) {
                 slider.max = uniqueDates.length - 1;
