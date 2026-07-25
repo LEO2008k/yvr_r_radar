@@ -49,6 +49,18 @@
             color: white;
             border-color: #2563eb;
         }
+        #filters button.active.btn-luma {
+            background: #8b5cf6; /* purple */
+            border-color: #7c3aed;
+        }
+        #filters button.active.btn-meetup {
+            background: #ef4444; /* red */
+            border-color: #dc2626;
+        }
+        #filters button.active.btn-allevents {
+            background: #10b981; /* green */
+            border-color: #059669;
+        }
     </style>
 </head>
 <body class="bg-gray-900">
@@ -58,15 +70,15 @@
         <div class="mb-2">
             <span class="font-bold text-sm text-gray-800 mr-2">Events:</span>
             <button class="filter-btn active" data-source="All">All Events</button>
-            <button class="filter-btn" data-source="Luma">Luma</button>
-            <button class="filter-btn" data-source="Meetup">Meetup</button>
-            <button class="filter-btn" data-source="AllEvents">AllEvents</button>
+            <button class="filter-btn btn-luma" data-source="Luma">Luma</button>
+            <button class="filter-btn btn-meetup" data-source="Meetup">Meetup</button>
+            <button class="filter-btn btn-allevents" data-source="AllEvents">AllEvents</button>
         </div>
         <div>
             <span class="font-bold text-sm text-gray-800 mr-2">Map POIs:</span>
             <button class="poi-btn active" data-poi="poi.park">Parks</button>
-            <button class="poi-btn active" data-poi="poi.business">Hotels/Business</button>
-            <button class="poi-btn active" data-poi="poi.attraction">Museums</button>
+            <button class="poi-btn active" data-poi="poi.business">Parking / Gas / Business</button>
+            <button class="poi-btn active" data-poi="poi.attraction">Attractions</button>
         </div>
         <div class="mt-2 text-right">
             <a href="/stats" class="text-sm text-blue-600 font-bold hover:underline">View Stats ↗</a>
@@ -74,6 +86,7 @@
         <div class="mt-4 border-t border-gray-300 pt-4">
             <span class="font-bold text-sm text-gray-800 block mb-2">Time Filter: <span id="current-date-label" class="text-emerald-600">Loading...</span></span>
             <input type="range" id="time-slider" class="w-full" min="0" max="0" value="0">
+            <div class="text-xs text-gray-500 mt-2 text-right" id="last-sync-label">Last Synced: Loading...</div>
         </div>
     </div>
     <div id="map"></div>
@@ -120,6 +133,21 @@
             }
         }
 
+        async function fetchLastSync() {
+            try {
+                const response = await fetch('/api/status');
+                const data = await response.json();
+                if (data.last_sync_time) {
+                    const syncDate = new Date(data.last_sync_time);
+                    document.getElementById('last-sync-label').innerText = 'Last Synced: ' + syncDate.toLocaleString();
+                } else {
+                    document.getElementById('last-sync-label').innerText = 'Last Synced: Never';
+                }
+            } catch (error) {
+                document.getElementById('last-sync-label').innerText = 'Last Synced: Unknown';
+            }
+        }
+
         // Toggle Button Logic
         const toggleBtn = document.getElementById('theme-toggle');
         toggleBtn.addEventListener('click', () => {
@@ -159,17 +187,19 @@
         }
 
         async function initMap() {
-            const vancouver = { lat: 49.2827, lng: -123.1207 };
+            // Center on Lower Mainland (roughly Burnaby/New West)
+            const lowerMainland = { lat: 49.2057, lng: -122.9110 };
             
             map = new google.maps.Map(document.getElementById("map"), {
-                zoom: 13,
-                center: vancouver,
+                zoom: 10,
+                center: lowerMainland,
                 disableDefaultUI: false,
                 mapTypeControl: false,
                 streetViewControl: false
             });
             applyMapStyles();
 
+            fetchLastSync();
             const events = await fetchEvents();
             const infoWindow = new google.maps.InfoWindow();
 

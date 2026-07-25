@@ -14,15 +14,21 @@ class AllEventsScraper(BaseScraper):
 
     def scrape(self) -> List[Dict]:
         events = []
-        try:
-            with httpx.Client(headers=self.headers, follow_redirects=True, timeout=15.0) as client:
-                response = client.get(self.base_url)
-                response.raise_for_status()
+        cities = ["vancouver", "surrey", "burnaby", "richmond", "coquitlam"]
+        
+        for city in cities:
+            url = f"https://allevents.in/{city}/all"
+            try:
+                with httpx.Client(headers=self.headers, follow_redirects=True, timeout=15.0) as client:
+                    response = client.get(url)
+                    response.raise_for_status()
+                    
+                soup = BeautifulSoup(response.text, 'html.parser')
                 
-            soup = BeautifulSoup(response.text, 'html.parser')
+                # Find all event cards
+                event_cards = soup.find_all('li', class_='event-card event-card-link')
+
             
-            # Find all event cards
-            event_cards = soup.find_all('li', class_='event-card event-card-link')
             
             for card in event_cards:
                 title = card.get('data-name', '').strip()
@@ -59,7 +65,7 @@ class AllEventsScraper(BaseScraper):
                 
                 # Extract location text
                 location_div = card.find('div', class_='location')
-                address = location_div.text.strip() if location_div else "Vancouver"
+                address = location_div.text.strip() if location_div else city.capitalize()
                 
                 # Geocode the address
                 lat, lng = get_lat_lng(address)
@@ -91,7 +97,7 @@ class AllEventsScraper(BaseScraper):
                     "event_url": event_url
                 })
                 
-        except Exception as e:
-            print(f"Error scraping AllEvents: {e}")
+            except Exception as e:
+                print(f"Error scraping AllEvents for {city}: {e}")
             
         return events
