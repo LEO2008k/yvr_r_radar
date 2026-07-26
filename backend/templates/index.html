@@ -193,8 +193,11 @@
             <!-- Appearance -->
             <div>
                 <label class="text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2 block">Appearance</label>
-                <button id="theme-toggle" class="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-bold rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors shadow-sm">
+                <button id="theme-toggle" class="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-bold rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors shadow-sm mb-2">
                     ☀️ Light Mode
+                </button>
+                <button id="radius-toggle" class="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-bold rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors shadow-sm">
+                    ⭕ Show Event Radius
                 </button>
             </div>
         </div>
@@ -404,6 +407,20 @@
         // Initialize Theme UI
         updateThemeUI();
 
+        // Radius Toggle
+        const radiusToggleBtn = document.getElementById('radius-toggle');
+        radiusToggleBtn.addEventListener('click', () => {
+            showRadius = !showRadius;
+            if (showRadius) {
+                radiusToggleBtn.classList.add('bg-blue-100', 'border-blue-500', 'text-blue-700');
+                radiusToggleBtn.classList.remove('bg-white', 'dark:bg-gray-800');
+            } else {
+                radiusToggleBtn.classList.remove('bg-blue-100', 'border-blue-500', 'text-blue-700');
+                radiusToggleBtn.classList.add('bg-white', 'dark:bg-gray-800');
+            }
+            if (typeof applyFilters === 'function') applyFilters();
+        });
+
         // State for POIs
         const poiVisibility = {
             'poi.park': true,
@@ -431,6 +448,9 @@
             
             map.setOptions({ styles: currentStyles });
         }
+
+        let markerCluster;
+        let showRadius = false;
 
         async function initMap() {
             // Center on Lower Mainland (roughly Burnaby/New West)
@@ -543,9 +563,10 @@
                     strokeWeight: 2,
                     fillColor: highlightColor,
                     fillOpacity: isFinished ? 0.1 : 0.35,
-                    map: map,
+                    map: null, // default to hidden
                     center: { lat: event.lat, lng: event.lng },
                     radius: radius,
+                    clickable: false // MUST BE FALSE so markers underneath can be clicked
                 });
                 circle.source = event.source;
                 circle.date = event.time.split('T')[0];
@@ -588,9 +609,14 @@
                 });
             });
 
+            // Initialize MarkerClusterer
+            markerCluster = new markerClusterer.MarkerClusterer({ map, markers: [] });
+
             function applyFilters() {
                 const searchEl = document.getElementById('event-search');
                 const searchQuery = searchEl ? searchEl.value.toLowerCase() : '';
+
+                let visibleMarkers = [];
 
                 allMarkers.forEach((marker, index) => {
                     const event = events[index];
@@ -619,15 +645,24 @@
                         searchMatch = titleMatch || addressMatch || sourceMatchText;
                     }
 
+                    let shouldShow = false;
                     if (marker.source === "BCFerries") {
-                        marker.setMap(showFerries && dateMatch && hourMatch && searchMatch ? map : null);
+                        shouldShow = showFerries && dateMatch && hourMatch && searchMatch;
                     } else if (marker.source === "Train") {
-                        marker.setMap(showTrains && dateMatch && hourMatch && searchMatch ? map : null);
+                        shouldShow = showTrains && dateMatch && hourMatch && searchMatch;
                     } else {
                         const sourceMatch = (currentSource === 'All' || marker.source === currentSource);
-                        marker.setMap(sourceMatch && dateMatch && hourMatch && searchMatch ? map : null);
+                        shouldShow = sourceMatch && dateMatch && hourMatch && searchMatch;
+                    }
+
+                    if (shouldShow) {
+                        visibleMarkers.push(marker);
                     }
                 });
+
+                // Update clusterer
+                markerCluster.clearMarkers();
+                markerCluster.addMarkers(visibleMarkers);
                 
                 allCircles.forEach((circle, index) => {
                     const event = events[index];
@@ -646,14 +681,22 @@
                             hourMatch = false;
                         }
                     }
+                    
+                    let searchMatch = true;
+                    if (searchQuery) {
+                        const titleMatch = (event.title || '').toLowerCase().includes(searchQuery);
+                        const addressMatch = (event.address || '').toLowerCase().includes(searchQuery);
+                        const sourceMatchText = (event.source || '').toLowerCase().includes(searchQuery);
+                        searchMatch = titleMatch || addressMatch || sourceMatchText;
+                    }
 
                     if (circle.source === "BCFerries") {
-                        circle.setMap(showFerries && dateMatch && hourMatch ? map : null);
+                        circle.setMap(showFerries && dateMatch && hourMatch && searchMatch && showRadius ? map : null);
                     } else if (circle.source === "Train") {
-                        circle.setMap(showTrains && dateMatch && hourMatch ? map : null);
+                        circle.setMap(showTrains && dateMatch && hourMatch && searchMatch && showRadius ? map : null);
                     } else {
                         const sourceMatch = (currentSource === 'All' || circle.source === currentSource);
-                        circle.setMap(sourceMatch && dateMatch && hourMatch && searchMatch ? map : null);
+                        circle.setMap(sourceMatch && dateMatch && hourMatch && searchMatch && showRadius ? map : null);
                     }
                 });
             }
@@ -1129,6 +1172,8 @@
             });
         }
     </script>
+    <!-- Maps JS -->
+    <script src="https://unpkg.com/@googlemaps/markerclusterer/dist/index.min.js"></script>
     <script src="https://maps.googleapis.com/maps/api/js?key={{ GOOGLE_MAPS_API_KEY }}&callback=initMap" async defer></script>
 </body>
 </html>
