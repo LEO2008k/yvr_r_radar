@@ -102,6 +102,20 @@
                 </div>
             </div>
             
+            <!-- Minimum Attendees Slider -->
+            <div>
+                <div class="flex justify-between items-center mb-2">
+                    <label class="text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Min Attendees</label>
+                    <span id="attendees-label" class="text-[11px] font-bold text-blue-600 dark:text-blue-400">0+</span>
+                </div>
+                <input type="range" id="attendees-slider" min="0" max="500" step="25" value="0" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700 accent-blue-600">
+                <div class="flex justify-between text-[10px] text-gray-400 mt-1 px-1">
+                    <span>0</span>
+                    <span>250</span>
+                    <span>500+</span>
+                </div>
+            </div>
+            
             <!-- Events -->
             <div>
                 <label class="text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2 block">Event Sources</label>
@@ -615,6 +629,9 @@
             function applyFilters() {
                 const searchEl = document.getElementById('event-search');
                 const searchQuery = searchEl ? searchEl.value.toLowerCase() : '';
+                
+                const sliderEl = document.getElementById('attendees-slider');
+                const minAttendees = sliderEl ? parseInt(sliderEl.value, 10) : 0;
 
                 let visibleMarkers = [];
 
@@ -645,14 +662,22 @@
                         searchMatch = titleMatch || addressMatch || sourceMatchText;
                     }
 
+                    // Attendees Match
+                    let attendeesMatch = true;
+                    if (marker.source !== "BCFerries" && marker.source !== "Train") {
+                        if (minAttendees > 0 && (event.attendees_count || 0) < minAttendees) {
+                            attendeesMatch = false;
+                        }
+                    }
+
                     let shouldShow = false;
                     if (marker.source === "BCFerries") {
-                        shouldShow = showFerries && dateMatch && hourMatch && searchMatch;
+                        shouldShow = showFerries && dateMatch && hourMatch && searchMatch && attendeesMatch;
                     } else if (marker.source === "Train") {
-                        shouldShow = showTrains && dateMatch && hourMatch && searchMatch;
+                        shouldShow = showTrains && dateMatch && hourMatch && searchMatch && attendeesMatch;
                     } else {
                         const sourceMatch = (currentSource === 'All' || marker.source === currentSource);
-                        shouldShow = sourceMatch && dateMatch && hourMatch && searchMatch;
+                        shouldShow = sourceMatch && dateMatch && hourMatch && searchMatch && attendeesMatch;
                     }
 
                     if (shouldShow) {
@@ -689,15 +714,33 @@
                         const sourceMatchText = (event.source || '').toLowerCase().includes(searchQuery);
                         searchMatch = titleMatch || addressMatch || sourceMatchText;
                     }
+                    
+                    let attendeesMatch = true;
+                    if (circle.source !== "BCFerries" && circle.source !== "Train") {
+                        if (minAttendees > 0 && (event.attendees_count || 0) < minAttendees) {
+                            attendeesMatch = false;
+                        }
+                    }
 
                     if (circle.source === "BCFerries") {
-                        circle.setMap(showFerries && dateMatch && hourMatch && searchMatch && showRadius ? map : null);
+                        circle.setMap(showFerries && dateMatch && hourMatch && searchMatch && attendeesMatch && showRadius ? map : null);
                     } else if (circle.source === "Train") {
-                        circle.setMap(showTrains && dateMatch && hourMatch && searchMatch && showRadius ? map : null);
+                        circle.setMap(showTrains && dateMatch && hourMatch && searchMatch && attendeesMatch && showRadius ? map : null);
                     } else {
                         const sourceMatch = (currentSource === 'All' || circle.source === currentSource);
-                        circle.setMap(sourceMatch && dateMatch && hourMatch && searchMatch && showRadius ? map : null);
+                        circle.setMap(sourceMatch && dateMatch && hourMatch && searchMatch && attendeesMatch && showRadius ? map : null);
                     }
+                });
+            }
+
+            // Bind Slider input
+            const attendeesSlider = document.getElementById('attendees-slider');
+            const attendeesLabel = document.getElementById('attendees-label');
+            if (attendeesSlider && attendeesLabel) {
+                attendeesSlider.addEventListener('input', (e) => {
+                    const val = e.target.value;
+                    attendeesLabel.textContent = val === "500" ? "500+" : val + "+";
+                    applyFilters();
                 });
             }
 
