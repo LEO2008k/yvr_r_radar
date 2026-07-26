@@ -97,6 +97,7 @@
                     <button class="filter-btn px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 transition-colors" data-source="Luma">Luma</button>
                     <button class="filter-btn px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 transition-colors" data-source="Meetup">Meetup</button>
                     <button class="filter-btn px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 transition-colors" data-source="AllEvents">AllEvents</button>
+                    <button class="filter-btn px-3 py-1.5 text-sm font-medium rounded-lg border border-purple-300 dark:border-purple-700 bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 transition-colors hidden" id="afterparty-filter" data-source="Afterparty">🍻 Afterparties</button>
                 </div>
             </div>
             
@@ -168,6 +169,11 @@
                 
                 <button id="btn-transport-board" class="mt-2 w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-bold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition-colors">
                     🚆 Transport Board
+                </button>
+                
+                <button id="btn-find-afterparties" class="mt-2 w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-bold rounded-lg bg-gradient-to-r from-purple-600 to-pink-500 hover:from-purple-700 hover:to-pink-600 text-white shadow-lg transition-transform transform hover:scale-[1.02] active:scale-[0.98]">
+                    <svg id="afterparty-spinner" class="animate-spin -ml-1 mr-1 h-4 w-4 text-white hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                    🍻 Find Afterparties (Beta)
                 </button>
             </div>
             
@@ -445,6 +451,8 @@
                     highlightColor = "#06b6d4";
                 } else if (event.source === "Train") {
                     highlightColor = "#f59e0b"; // Amber for Trains
+                } else if (event.source === "Afterparty") {
+                    highlightColor = "#9333ea"; // Purple for Afterparties
                 }
 
                 // Time logic for color interpolation
@@ -631,6 +639,11 @@
                 currentSource = savedSource;
             }
 
+            // Make Afterparty filter visible if it is the current source or events exist
+            if (currentSource === 'Afterparty' || events.some(e => e.source === 'Afterparty')) {
+                document.getElementById('afterparty-filter').classList.remove('hidden');
+            }
+
             const filterBtns = document.querySelectorAll('.filter-btn');
             filterBtns.forEach(btn => {
                 if (btn.getAttribute('data-source') === currentSource) {
@@ -655,16 +668,28 @@
             const todayMarker = document.getElementById('today-marker');
             const btnToday = document.getElementById('btn-today');
             
-            const uniqueDates = [...new Set(events.map(ev => ev.time.split('T')[0]))].sort();
+            // Determine user's local timezone date string
+            const now = new Date();
+            const offset = now.getTimezoneOffset() * 60000;
+            const localISOTime = (new Date(now - offset)).toISOString().slice(0, -1);
+            const todayStr = localISOTime.split('T')[0];
+            
+            // Calculate date 30 days from now
+            const maxDateObj = new Date(now.getTime() + (30 * 24 * 60 * 60 * 1000));
+            const maxDateStr = (new Date(maxDateObj - offset)).toISOString().slice(0, -1).split('T')[0];
+            
+            let rawUniqueDates = [...new Set(events.map(ev => ev.time.split('T')[0]))].sort();
+            
+            // Filter to maximum 30 days into the future
+            let uniqueDates = rawUniqueDates.filter(d => d <= maxDateStr);
+            
+            if (!uniqueDates.includes(todayStr)) {
+                uniqueDates.push(todayStr);
+                uniqueDates.sort();
+            }
             
             if (uniqueDates.length > 0) {
                 slider.max = uniqueDates.length - 1;
-                
-                // Determine user's local timezone date string
-                const now = new Date();
-                const offset = now.getTimezoneOffset() * 60000;
-                const localISOTime = (new Date(now - offset)).toISOString().slice(0, -1);
-                const todayStr = localISOTime.split('T')[0];
 
                 let defaultIndex = uniqueDates.indexOf(todayStr);
                 
@@ -934,7 +959,29 @@
                 });
             }
 
-            // Modal Logic
+            // Find Afterparties Action
+            document.getElementById('btn-find-afterparties').addEventListener('click', async (e) => {
+                const btn = e.currentTarget;
+                const spinner = document.getElementById('afterparty-spinner');
+                btn.disabled = true;
+                spinner.classList.remove('hidden');
+                
+                try {
+                    const res = await fetch('/api/scrape/afterparties', { method: 'POST' });
+                    if (res.ok) {
+                        // Successfully scraped, let's refresh the map events and switch tab
+                        localStorage.setItem('yvr_currentSource', 'Afterparty');
+                        window.location.reload();
+                    }
+                } catch (err) {
+                    console.error("Afterparties update failed", err);
+                } finally {
+                    btn.disabled = false;
+                    spinner.classList.add('hidden');
+                }
+            });
+
+            const modeTimelineBtn = document.getElementById('mode-timeline');       // Modal Logic
             const modal = document.getElementById('transport-modal');
             const btnOpenModal = document.getElementById('btn-transport-board');
             const btnCloseModal = document.getElementById('close-modal');
