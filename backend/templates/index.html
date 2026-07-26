@@ -588,7 +588,7 @@
 
                 const marker = new google.maps.Marker({
                     position: { lat: event.lat, lng: event.lng },
-                    map: map,
+                    map: null, // Let MarkerClusterer manage visibility
                     title: event.title + (isFinished ? " (Finished)" : ""),
                     icon: iconUrl,
                     opacity: markerOpacity
@@ -682,6 +682,8 @@
 
                     if (shouldShow) {
                         visibleMarkers.push(marker);
+                    } else {
+                        marker.setMap(null); // Explicitly hide filtered out markers
                     }
                 });
 
