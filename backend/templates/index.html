@@ -89,6 +89,19 @@
         <!-- Scrollable Content -->
         <div class="p-4 overflow-y-auto flex-1 space-y-6">
             
+            <!-- Search -->
+            <div>
+                <label class="text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2 block">Search</label>
+                <div class="relative">
+                    <input type="text" id="event-search" placeholder="Search events or locations..." class="w-full pl-9 pr-3 py-2 text-sm bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white transition-colors" autocomplete="off">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <svg class="h-4 w-4 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
+                        </svg>
+                    </div>
+                </div>
+            </div>
+            
             <!-- Events -->
             <div>
                 <label class="text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2 block">Event Sources</label>
@@ -576,6 +589,9 @@
             });
 
             function applyFilters() {
+                const searchEl = document.getElementById('event-search');
+                const searchQuery = searchEl ? searchEl.value.toLowerCase() : '';
+
                 allMarkers.forEach((marker, index) => {
                     const event = events[index];
                     const dateMatch = (currentDate === null || marker.date === currentDate);
@@ -594,13 +610,22 @@
                         }
                     }
 
+                    // Secure XSS-free client-side search matching
+                    let searchMatch = true;
+                    if (searchQuery) {
+                        const titleMatch = (event.title || '').toLowerCase().includes(searchQuery);
+                        const addressMatch = (event.address || '').toLowerCase().includes(searchQuery);
+                        const sourceMatchText = (event.source || '').toLowerCase().includes(searchQuery);
+                        searchMatch = titleMatch || addressMatch || sourceMatchText;
+                    }
+
                     if (marker.source === "BCFerries") {
-                        marker.setMap(showFerries && dateMatch && hourMatch ? map : null);
+                        marker.setMap(showFerries && dateMatch && hourMatch && searchMatch ? map : null);
                     } else if (marker.source === "Train") {
-                        marker.setMap(showTrains && dateMatch && hourMatch ? map : null);
+                        marker.setMap(showTrains && dateMatch && hourMatch && searchMatch ? map : null);
                     } else {
                         const sourceMatch = (currentSource === 'All' || marker.source === currentSource);
-                        marker.setMap(sourceMatch && dateMatch && hourMatch ? map : null);
+                        marker.setMap(sourceMatch && dateMatch && hourMatch && searchMatch ? map : null);
                     }
                 });
                 
@@ -628,8 +653,16 @@
                         circle.setMap(showTrains && dateMatch && hourMatch ? map : null);
                     } else {
                         const sourceMatch = (currentSource === 'All' || circle.source === currentSource);
-                        circle.setMap(sourceMatch && dateMatch && hourMatch ? map : null);
+                        circle.setMap(sourceMatch && dateMatch && hourMatch && searchMatch ? map : null);
                     }
+                });
+            }
+
+            // Bind Search input
+            const searchInput = document.getElementById('event-search');
+            if (searchInput) {
+                searchInput.addEventListener('input', () => {
+                    applyFilters();
                 });
             }
 
