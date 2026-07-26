@@ -102,17 +102,29 @@
                 </div>
             </div>
             
-            <!-- Minimum Attendees Slider -->
+            <!-- Attendees Filter Range -->
             <div>
                 <div class="flex justify-between items-center mb-2">
-                    <label class="text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Min Attendees</label>
-                    <span id="attendees-label" class="text-[11px] font-bold text-blue-600 dark:text-blue-400">0+</span>
+                    <label class="text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Attendees Range</label>
+                    <span id="attendees-label" class="text-[11px] font-bold text-blue-600 dark:text-blue-400">0 - 500+</span>
                 </div>
-                <input type="range" id="attendees-slider" min="0" max="500" step="25" value="0" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700 accent-blue-600">
-                <div class="flex justify-between text-[10px] text-gray-400 mt-1 px-1">
-                    <span>0</span>
-                    <span>250</span>
-                    <span>500+</span>
+                
+                <div class="space-y-3">
+                    <!-- Min Slider -->
+                    <div>
+                        <div class="flex justify-between text-[10px] text-gray-400 mb-1 px-1">
+                            <span>Min: <span id="min-val-label" class="font-bold text-gray-600 dark:text-gray-300">0</span></span>
+                        </div>
+                        <input type="range" id="min-attendees-slider" min="0" max="500" step="5" value="0" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700 accent-blue-600">
+                    </div>
+                    
+                    <!-- Max Slider -->
+                    <div>
+                        <div class="flex justify-between text-[10px] text-gray-400 mb-1 px-1">
+                            <span>Max: <span id="max-val-label" class="font-bold text-gray-600 dark:text-gray-300">500+</span></span>
+                        </div>
+                        <input type="range" id="max-attendees-slider" min="0" max="500" step="5" value="500" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700 accent-blue-600">
+                    </div>
                 </div>
             </div>
             
@@ -630,8 +642,10 @@
                 const searchEl = document.getElementById('event-search');
                 const searchQuery = searchEl ? searchEl.value.toLowerCase() : '';
                 
-                const sliderEl = document.getElementById('attendees-slider');
-                const minAttendees = sliderEl ? parseInt(sliderEl.value, 10) : 0;
+                const minSliderEl = document.getElementById('min-attendees-slider');
+                const maxSliderEl = document.getElementById('max-attendees-slider');
+                const minAttendees = minSliderEl ? parseInt(minSliderEl.value, 10) : 0;
+                const maxAttendees = maxSliderEl ? parseInt(maxSliderEl.value, 10) : 500;
 
                 let visibleMarkers = [];
 
@@ -665,7 +679,11 @@
                     // Attendees Match
                     let attendeesMatch = true;
                     if (marker.source !== "BCFerries" && marker.source !== "Train") {
-                        if (minAttendees > 0 && (event.attendees_count || 0) < minAttendees) {
+                        const count = event.attendees_count || 0;
+                        if (count < minAttendees) {
+                            attendeesMatch = false;
+                        }
+                        if (maxAttendees < 500 && count > maxAttendees) {
                             attendeesMatch = false;
                         }
                     }
@@ -719,7 +737,11 @@
                     
                     let attendeesMatch = true;
                     if (circle.source !== "BCFerries" && circle.source !== "Train") {
-                        if (minAttendees > 0 && (event.attendees_count || 0) < minAttendees) {
+                        const count = event.attendees_count || 0;
+                        if (count < minAttendees) {
+                            attendeesMatch = false;
+                        }
+                        if (maxAttendees < 500 && count > maxAttendees) {
                             attendeesMatch = false;
                         }
                     }
@@ -736,12 +758,33 @@
             }
 
             // Bind Slider input
-            const attendeesSlider = document.getElementById('attendees-slider');
+            const minSlider = document.getElementById('min-attendees-slider');
+            const maxSlider = document.getElementById('max-attendees-slider');
+            const minLabel = document.getElementById('min-val-label');
+            const maxLabel = document.getElementById('max-val-label');
             const attendeesLabel = document.getElementById('attendees-label');
-            if (attendeesSlider && attendeesLabel) {
-                attendeesSlider.addEventListener('input', (e) => {
-                    const val = e.target.value;
-                    attendeesLabel.textContent = val === "500" ? "500+" : val + "+";
+            
+            if (minSlider && maxSlider) {
+                const updateLabels = () => {
+                    const min = minSlider.value;
+                    const max = maxSlider.value;
+                    minLabel.textContent = min;
+                    maxLabel.textContent = max === "500" ? "500+" : max;
+                    attendeesLabel.textContent = min + " - " + (max === "500" ? "500+" : max);
+                };
+
+                minSlider.addEventListener('input', (e) => {
+                    if (parseInt(minSlider.value) > parseInt(maxSlider.value)) {
+                        maxSlider.value = minSlider.value;
+                    }
+                    updateLabels();
+                    applyFilters();
+                });
+                maxSlider.addEventListener('input', (e) => {
+                    if (parseInt(maxSlider.value) < parseInt(minSlider.value)) {
+                        minSlider.value = maxSlider.value;
+                    }
+                    updateLabels();
                     applyFilters();
                 });
             }
