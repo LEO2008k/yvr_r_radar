@@ -15,6 +15,17 @@ class Event(Base):
     end_time = Column(DateTime, nullable=True)
     attendees_count = Column(Integer, default=0)
     event_url = Column(String, nullable=True)
+    delay_minutes = Column(Integer, nullable=True)
+
+class ScraperStatus(Base):
+    __tablename__ = "scraper_status"
+
+    id = Column(Integer, primary_key=True, index=True)
+    scraper_name = Column(String, index=True)
+    last_run = Column(DateTime, default=datetime.datetime.utcnow)
+    status = Column(String) # "SUCCESS" or "ERROR"
+    events_found = Column(Integer, default=0)
+    error_message = Column(String, nullable=True)
 
 class ScrapeLog(Base):
     __tablename__ = "scrape_logs"

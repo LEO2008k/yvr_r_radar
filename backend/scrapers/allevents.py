@@ -14,7 +14,7 @@ class AllEventsScraper(BaseScraper):
 
     def scrape(self) -> List[Dict]:
         events = []
-        cities = ["vancouver", "surrey", "burnaby", "richmond", "coquitlam", "maple-ridge", "mission", "langley", "abbotsford", "chilliwack", "squamish", "whistler"]
+        cities = ["vancouver", "surrey", "burnaby", "richmond", "coquitlam", "maple-ridge", "mission", "langley", "abbotsford", "chilliwack", "squamish", "whistler", "white-rock", "delta"]
         
         for city in cities:
             url = f"https://allevents.in/{city}/all"
@@ -82,7 +82,9 @@ class AllEventsScraper(BaseScraper):
                             "abbotsford": (49.0504, -122.3045),
                             "chilliwack": (49.1747, -121.9532),
                             "squamish": (49.7016, -123.1558),
-                            "whistler": (50.1163, -122.9574)
+                            "whistler": (50.1163, -122.9574),
+                            "white-rock": (49.0253, -122.8030),
+                            "delta": (49.0847, -123.0586)
                         }
                         base_lat, base_lng = fallbacks.get(city.lower(), (49.2827, -123.1207))
                         import random

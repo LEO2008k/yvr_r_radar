@@ -7,7 +7,7 @@ import os
 import json
 from datetime import datetime, date, time
 from database import SessionLocal
-from models import Event, ScrapeLog, ApiStatus
+from models import Event, ScrapeLog, ApiStatus, ScraperStatus
 from starlette.middleware.sessions import SessionMiddleware
 from apscheduler.schedulers.background import BackgroundScheduler
 from run_scrapers import scrape_all
@@ -30,9 +30,9 @@ def check_api_health():
             
             try:
                 if info["type"] == "google":
-                    api_key = os.getenv("GOOGLE_MAPS_API_KEY")
+                    api_key = os.getenv("GEOCODING_API_KEY") or os.getenv("GOOGLE_MAPS_API_KEY")
                     if not api_key or api_key == "YOUR_API_KEY_HERE":
-                        raise Exception("Missing GOOGLE_MAPS_API_KEY")
+                        raise Exception("Missing GEOCODING_API_KEY")
                     search_address = "Vancouver, BC, Canada"
                     url = f"https://maps.googleapis.com/maps/api/geocode/json?address={urllib.parse.quote(search_address)}&key={api_key}"
                     with httpx.Client() as client:
@@ -179,7 +179,8 @@ async def get_events():
                 "address": ev.address,
                 "source": ev.source,
                 "attendees_count": ev.attendees_count,
-                "event_url": ev.event_url
+                "event_url": ev.event_url,
+                "delay_minutes": ev.delay_minutes
             })
         return JSONResponse(content=results)
     finally:
@@ -228,11 +229,24 @@ async def read_status(request: Request):
     if not request.session.get("authenticated"):
         return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
         
-    return templates.TemplateResponse(
-        request=request, 
-        name="status.html", 
-        context={}
-    )
+    db = SessionLocal()
+    try:
+        scraper_statuses = db.query(ScraperStatus).order_by(ScraperStatus.scraper_name, ScraperStatus.last_run.desc()).all()
+        # Get latest for each scraper
+        latest_statuses = {}
+        for st in scraper_statuses:
+            if st.scraper_name not in latest_statuses:
+                latest_statuses[st.scraper_name] = st
+                
+        return templates.TemplateResponse(
+            request=request, 
+            name="status.html", 
+            context={
+                "scraper_statuses": list(latest_statuses.values())
+            }
+        )
+    finally:
+        db.close()
 
 @app.get("/api/status", dependencies=[Depends(require_auth)])
 async def get_status():
@@ -263,11 +277,24 @@ async def get_status():
                 "error_message": api.error_message
             })
             
+        scraper_statuses = db.query(ScraperStatus).order_by(ScraperStatus.scraper_name, ScraperStatus.last_run.desc()).all()
+        latest_statuses = {}
+        for st in scraper_statuses:
+            if st.scraper_name not in latest_statuses:
+                latest_statuses[st.scraper_name] = {
+                    "scraper_name": st.scraper_name,
+                    "status": st.status,
+                    "last_run": st.last_run.isoformat() if st.last_run else None,
+                    "events_found": st.events_found,
+                    "error_message": st.error_message
+                }
+            
         return JSONResponse(content={
             "db_status": db_status,
             "cron_status": cron_status,
             "last_sync_time": last_sync_time,
-            "api_statuses": api_list
+            "api_statuses": api_list,
+            "scraper_statuses": list(latest_statuses.values())
         })
     except Exception as e:
         return JSONResponse(content={"error": str(e)}, status_code=500)
@@ -290,3 +317,111 @@ async def scrape_luma():
         except Exception as e:
             return {"status": "error", "message": str(e)}
 
+@app.post("/api/scrape/ferries")
+async def scrape_ferries():
+    from scrapers.bcferries import BCFerriesScraper
+    db = SessionLocal()
+    scraper_name = "BCFerriesScraper"
+    try:
+        scraper = BCFerriesScraper()
+        ferry_events = scraper.scrape()
+        
+        # Delete existing ferry events for the future to avoid duplicates
+        # Actually, let's just delete all BCFerries events and replace them, since it generates current data
+        db.query(Event).filter(Event.source == "BCFerries").delete()
+        
+        saved_count = 0
+        for ev in ferry_events:
+            time_dt = datetime.strptime(ev["time"], "%Y-%m-%d %H:%M")
+            end_time_dt = datetime.strptime(ev["end_time"], "%Y-%m-%d %H:%M") if ev.get("end_time") else None
+            
+            db_event = Event(
+                title=ev["title"],
+                time=time_dt,
+                end_time=end_time_dt,
+                lat=ev["lat"],
+                lng=ev["lng"],
+                address=ev["address"],
+                source=ev["source"],
+                attendees_count=ev.get("attendees_count", 0),
+                event_url=ev.get("event_url", "")
+            )
+            db.add(db_event)
+            saved_count += 1
+            
+        status_entry = ScraperStatus(
+            scraper_name=scraper_name,
+            status="SUCCESS",
+            events_found=saved_count,
+            error_message=None
+        )
+        db.add(status_entry)
+        db.commit()
+        return {"status": "success", "message": f"Scraped and saved {saved_count} ferry events."}
+    except Exception as e:
+        db.rollback()
+        status_entry = ScraperStatus(
+            scraper_name=scraper_name,
+            status="ERROR",
+            events_found=0,
+            error_message=str(e)
+        )
+        db.add(status_entry)
+        db.commit()
+        return {"status": "error", "message": str(e)}
+    finally:
+        db.close()
+
+@app.post("/api/scrape/trains")
+async def scrape_trains():
+    from scrapers.trains import TrainsScraper
+    db = SessionLocal()
+    scraper_name = "TrainsScraper"
+    try:
+        scraper = TrainsScraper()
+        train_events = scraper.scrape()
+        
+        db.query(Event).filter(Event.source == "Train").delete()
+        
+        saved_count = 0
+        for ev in train_events:
+            time_dt = datetime.strptime(ev["time"], "%Y-%m-%d %H:%M")
+            end_time_dt = datetime.strptime(ev["end_time"], "%Y-%m-%d %H:%M") if ev.get("end_time") else None
+            
+            db_event = Event(
+                title=ev["title"],
+                time=time_dt,
+                end_time=end_time_dt,
+                lat=ev["lat"],
+                lng=ev["lng"],
+                address=ev["address"],
+                source=ev["source"],
+                attendees_count=ev.get("attendees_count", 0),
+                event_url=ev.get("event_url", ""),
+                delay_minutes=ev.get("delay_minutes", 0)
+            )
+            db.add(db_event)
+            saved_count += 1
+            
+        status_entry = ScraperStatus(
+            scraper_name=scraper_name,
+            status="SUCCESS",
+            events_found=saved_count,
+            error_message=None
+        )
+        db.add(status_entry)
+        db.commit()
+        return {"status": "success", "message": f"Scraped and saved {saved_count} train events."}
+    except Exception as e:
+        db.rollback()
+        status_entry = ScraperStatus(
+            scraper_name=scraper_name,
+            status="ERROR",
+            events_found=0,
+            error_message=str(e)
+        )
+        db.add(status_entry)
+        db.commit()
+        return {"status": "error", "message": str(e)}
+    finally:
+        db.close()

@@ -31,35 +31,40 @@ class LumaScraper(BaseScraper):
                 "React Meetup", "Data Science Social", "Web Dev Bootcamp", 
                 "Design Thinking", "Product Managers Lunch", "Crypto Networking"
             ]
-            addresses = [
-                "Downtown Vancouver", "Mount Pleasant", "Yaletown Tech Hub", 
-                "Vancouver Convention Centre", "Gastown", "Kitsilano", "Commercial Drive",
-                "UBC Campus", "SFU Harbour Centre"
-            ]
+            cities = ["vancouver", "surrey", "burnaby", "richmond", "coquitlam", "maple-ridge", "mission", "langley", "abbotsford", "chilliwack", "squamish", "whistler", "white-rock", "delta"]
             
             mock_luma_response = []
             
-            # Generate 3 events per day for the past 14 days and next 14 days
-            for day_offset in range(-14, 15):
-                target_date = today + datetime.timedelta(days=day_offset)
-                date_str = target_date.strftime('%Y-%m-%d')
-                
-                for _ in range(3):
+            from .geocoder import get_lat_lng
+            
+            for city in cities:
+                # Generate 1 event per day for the past 14 days and next 14 days (reduced from 3 to 1 to not overload mock)
+                for day_offset in range(-14, 15):
+                    target_date = today + datetime.timedelta(days=day_offset)
+                    date_str = target_date.strftime('%Y-%m-%d')
+                    
                     is_online = random.random() < 0.2
                     title = f"Luma: {random.choice(titles)}"
-                    address = "Online" if is_online else random.choice(addresses)
+                    address = "Online" if is_online else city.capitalize()
                     hour = random.randint(9, 20)
+                    
+                    if is_online:
+                        lat, lng = 49.2827, -123.1207 # Default to Vancouver if online
+                    else:
+                        lat, lng = get_lat_lng(address)
+                        if lat is None or lng is None:
+                            continue
                     
                     mock_luma_response.append({
                         "title": title,
                         "time": f"{date_str} {hour:02d}:00",
                         "end_time": f"{date_str} {min(23, hour + 2):02d}:00",
-                        "lat": 49.2827 + random.uniform(-0.06, 0.06),
-                        "lng": -123.1207 + random.uniform(-0.06, 0.06),
+                        "lat": lat + random.uniform(-0.03, 0.03),
+                        "lng": lng + random.uniform(-0.03, 0.03),
                         "address": address,
                         "source": "Luma",
                         "attendees_count": random.randint(20, 250),
-                        "event_url": "https://lu.ma/vancouver",
+                        "event_url": f"https://lu.ma/{city}",
                         "is_online": is_online
                     })
             

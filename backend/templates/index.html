@@ -1,133 +1,262 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>YVR Rideshare Radar - Map</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+        }
+    </script>
     <style>
         body, html { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; }
-        #map { height: 100vh; width: 100vw; }
-        #theme-toggle {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            z-index: 1000;
-            background: white;
-            color: black;
-            padding: 6px 12px;
-            border-radius: 8px;
-            font-weight: bold;
-            font-size: 14px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-        #theme-toggle.dark-mode {
-            background: #1f2937;
-            color: #f3f4f6;
-        }
-        /* Settings Panel Styling */
-        #filters {
-            transition: opacity 0.2s ease-in-out;
-        }
-        #filters button {
-            padding: 4px 10px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-weight: bold;
-            font-size: 13px;
-            border: 1px solid #ccc;
-            white-space: nowrap;
-        }
-        #filters button.active {
-            background: #3b82f6;
-            color: white;
-            border-color: #2563eb;
-        }
-        #filters button.active.btn-luma {
-            background: #8b5cf6;
-            border-color: #7c3aed;
-        }
-        #filters button.active.btn-meetup {
-            background: #ef4444;
-            border-color: #dc2626;
-        }
-        #filters button.active.btn-allevents {
-            background: #10b981;
-            border-color: #059669;
-        }
-        /* Mobile slider touch tweaks */
+        #map { height: 100dvh; width: 100vw; }
+        
+        /* Custom scrollbar for panel */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .dark ::-webkit-scrollbar-thumb { background: #475569; }
+
+        /* Range Slider Styling */
         input[type=range] {
-            accent-color: #059669;
-            height: 6px;
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+            padding: 10px 0; /* Increase invisible touch target area vertically */
+            margin: 5px 0;
+            touch-action: pan-y; /* Improve scrolling on mobile */
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 28px; width: 28px; /* Much larger for mobile fingers */
+            border-radius: 50%;
+            background: #10b981;
+            cursor: pointer;
+            margin-top: -11px; /* Align correctly with track */
+            box-shadow: 0 0 12px rgba(16,185,129,0.5);
+            border: 3px solid white;
+            transition: transform 0.1s;
+        }
+        input[type=range]::-webkit-slider-thumb:active {
+            transform: scale(1.15); /* Visual feedback when grabbing */
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%; height: 6px; /* Slightly thicker track */
+            cursor: pointer;
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+        .dark input[type=range]::-webkit-slider-runnable-track { background: #475569; }
+        
+        /* Active buttons */
+        .filter-btn.active, .poi-btn.active, .layer-btn.active {
+            background-color: #3b82f6 !important;
+            border-color: #2563eb !important;
+            color: white !important;
+        }
+        .dark .filter-btn.active, .dark .poi-btn.active, .dark .layer-btn.active {
+            background-color: #2563eb !important;
+            border-color: #1d4ed8 !important;
         }
     </style>
 </head>
-<body class="bg-gray-900">
+<body class="bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100">
 
-    <button id="theme-toggle" class="dark-mode">☀️ Light</button>
-    
-    <!-- Mobile Menu Toggle Button (Floating) -->
-    <button id="mobile-menu-btn" class="sm:hidden absolute top-[10px] left-[10px] z-[1000] bg-white/95 backdrop-blur-sm text-gray-800 px-3 py-2 rounded-lg shadow-md font-bold text-sm border border-gray-200">
-        ⚙️ Filters & Settings
+    <!-- FAB for Mobile -->
+    <button id="mobile-menu-btn" class="sm:hidden absolute top-4 left-4 z-[990] w-12 h-12 flex items-center justify-center bg-white/90 dark:bg-gray-800/90 backdrop-blur-md rounded-full shadow-lg border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:scale-105 active:scale-95 transition-transform">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
     </button>
     
-    <!-- Settings Panel (Hidden on mobile by default) -->
-    <div id="filters" class="hidden sm:block absolute top-[50px] sm:top-[10px] left-[10px] z-[1000] bg-white/95 backdrop-blur-sm p-3 rounded-lg shadow-md w-[calc(100vw-20px)] sm:w-auto max-w-[400px] max-h-[60vh] overflow-y-auto">
-        <div class="flex justify-between items-center sm:hidden mb-2 border-b border-gray-200 pb-2">
-            <span class="font-bold text-gray-800">Map Controls</span>
-            <button id="close-menu-btn" class="text-sm font-bold text-red-600 bg-transparent border-none shadow-none px-0" style="border:none; padding:0; box-shadow:none;">Close ❌</button>
+    <!-- Filters Panel Backdrop -->
+    <div id="filters-backdrop" class="fixed inset-0 bg-black/50 z-[995] hidden transition-opacity opacity-0 duration-300"></div>
+    
+    <!-- Filters Panel (Off-canvas on mobile, absolute on desktop) -->
+    <div id="filters-panel" class="fixed sm:absolute top-0 sm:top-4 left-0 sm:left-4 z-[1000] h-[100dvh] sm:h-auto sm:max-h-[85vh] w-[85vw] max-w-[350px] bg-white/95 dark:bg-gray-900/95 backdrop-blur-xl shadow-2xl sm:rounded-2xl border-r sm:border border-gray-200 dark:border-gray-700 flex flex-col transform -translate-x-full sm:translate-x-0 transition-transform duration-300 ease-out">
+        
+        <!-- Header -->
+        <div class="flex justify-between items-center p-4 border-b border-gray-200 dark:border-gray-800">
+            <h2 class="text-xl font-extrabold flex items-center gap-2">
+                <span>🌍</span> Map Radar
+            </h2>
+            <button id="close-menu-btn" class="sm:hidden p-2 rounded-full bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
         </div>
         
-        <div id="filters-content">
-            <div class="mb-3">
-                <span class="font-bold text-sm text-gray-800 block mb-1">Events:</span>
+        <!-- Scrollable Content -->
+        <div class="p-4 overflow-y-auto flex-1 space-y-6">
+            
+            <!-- Events -->
+            <div>
+                <label class="text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2 block">Event Sources</label>
                 <div class="flex flex-wrap gap-2">
-                    <button class="filter-btn active" data-source="All">All Events</button>
-                    <button class="filter-btn btn-luma" data-source="Luma">Luma</button>
-                    <button class="filter-btn btn-meetup" data-source="Meetup">Meetup</button>
-                    <button class="filter-btn btn-allevents" data-source="AllEvents">AllEvents</button>
+                    <button class="filter-btn active px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 transition-colors" data-source="All">All Events</button>
+                    <button class="filter-btn px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 transition-colors" data-source="Luma">Luma</button>
+                    <button class="filter-btn px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 transition-colors" data-source="Meetup">Meetup</button>
+                    <button class="filter-btn px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 transition-colors" data-source="AllEvents">AllEvents</button>
                 </div>
             </div>
             
-            <div class="mb-3">
-                <span class="font-bold text-sm text-gray-800 block mb-1">Map POIs:</span>
+            <!-- Timeline -->
+            <div>
+                <div class="flex justify-between items-center mb-2">
+                    <label class="text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Time Filter</label>
+                    <button id="btn-today" class="text-[10px] font-bold bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-400 px-2 py-0.5 rounded hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors hidden">Today</button>
+                </div>
+                
+                <div class="flex bg-gray-200 dark:bg-gray-800 rounded-lg p-1 mb-3">
+                    <button id="mode-day" class="flex-1 text-xs font-bold py-1.5 rounded-md bg-white dark:bg-gray-700 shadow text-blue-600 dark:text-blue-400 transition-all">📅 Whole Day</button>
+                    <button id="mode-hour" class="flex-1 text-xs font-bold py-1.5 rounded-md text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-all">🕒 Specific Hour</button>
+                </div>
+
+                <div class="mb-1 flex justify-between items-center">
+                    <span class="text-xs font-medium text-emerald-600 dark:text-emerald-400" id="current-date-label">Loading...</span>
+                    <span class="text-xs font-bold text-indigo-600 dark:text-indigo-400 hidden" id="current-hour-label"></span>
+                </div>
+                
+                <div class="relative w-full py-2 px-1">
+                    <input type="range" id="time-slider" min="0" max="0" value="0">
+                    <div id="today-marker" class="absolute w-1.5 h-3 bg-red-500 rounded-full hidden" style="top: 11px; pointer-events: none;"></div>
+                </div>
+                
+                <div id="hour-slider-container" class="relative w-full py-2 px-1 mt-2 hidden opacity-0 transition-opacity duration-300">
+                    <input type="range" id="hour-slider" min="0" max="23" value="12">
+                    <div class="flex justify-between text-[9px] text-gray-400 mt-1 px-1">
+                        <span>12 AM</span>
+                        <span>6 AM</span>
+                        <span>12 PM</span>
+                        <span>6 PM</span>
+                        <span>11 PM</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- POIs -->
+            <div>
+                <label class="text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2 block">Map Points of Interest</label>
                 <div class="flex flex-wrap gap-2">
-                    <button class="poi-btn active" data-poi="poi.park">Parks</button>
-                    <button class="poi-btn active" data-poi="poi.business">Parking / Gas</button>
-                    <button class="poi-btn active" data-poi="poi.attraction">Attractions</button>
+                    <button class="poi-btn active px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 transition-colors" data-poi="poi.park">🌲 Parks</button>
+                    <button class="poi-btn active px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 transition-colors" data-poi="poi.business">⛽ Parking/Gas</button>
+                    <button class="poi-btn active px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 transition-colors" data-poi="poi.attraction">🎡 Attractions</button>
                 </div>
             </div>
             
-            <div class="mb-3">
-                <span class="font-bold text-sm text-gray-800 block mb-1">Layers:</span>
+            <!-- Layers -->
+            <div>
+                <label class="text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2 block">Map Layers & Transport</label>
                 <div class="flex flex-wrap gap-2">
-                    <button id="btn-traffic" class="filter-btn">🚗 Traffic</button>
-                    <button id="btn-satellite" class="filter-btn">🌍 Satellite</button>
+                    <button id="btn-traffic" class="layer-btn px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 transition-colors">🚗 Traffic</button>
+                    <button id="btn-satellite" class="layer-btn px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 transition-colors">🌍 Satellite</button>
+                    <button id="btn-ferries" class="layer-btn px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 transition-colors">⛴️ BC Ferries</button>
+                    <button id="btn-trains" class="layer-btn px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 transition-colors">🚆 Trains</button>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-2 mt-4">
+                    <button id="btn-update-ferries" class="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm font-bold rounded-lg bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white shadow-md transition-all transform hover:scale-[1.02] active:scale-[0.98]">
+                        <svg id="ferry-spinner" class="animate-spin -ml-1 mr-1 h-4 w-4 text-white hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                        🔄 Ferries
+                    </button>
+                    
+                    <button id="btn-update-trains" class="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm font-bold rounded-lg bg-gradient-to-r from-amber-600 to-orange-500 hover:from-amber-700 hover:to-orange-600 text-white shadow-md transition-all transform hover:scale-[1.02] active:scale-[0.98]">
+                        <svg id="train-spinner" class="animate-spin -ml-1 mr-1 h-4 w-4 text-white hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                        🔄 Trains
+                    </button>
+                </div>
+                
+                <button id="btn-transport-board" class="mt-2 w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-bold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition-colors">
+                    🚆 Transport Board
+                </button>
+            </div>
+            
+            <!-- Appearance -->
+            <div>
+                <label class="text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2 block">Appearance</label>
+                <button id="theme-toggle" class="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-bold rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors shadow-sm">
+                    ☀️ Light Mode
+                </button>
+            </div>
+        </div>
+        
+        <!-- Footer Links -->
+        <div class="p-4 border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50 sm:rounded-b-2xl mt-auto">
+            <div class="flex justify-between items-center mb-2">
+                <a href="/status" class="text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"></path></svg> System Health
+                </a>
+                <a href="/stats" class="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1">
+                    View Stats <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="7" y1="17" x2="17" y2="7"></line><polyline points="7 7 17 7 17 17"></polyline></svg>
+                </a>
+            </div>
+            
+            <div class="mt-2 pt-2 border-t border-gray-200 dark:border-gray-700/50 space-y-1.5">
+                <div class="text-[9px] font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider mb-1">Status Colors</div>
+                <div class="flex items-center gap-2 text-[10px] text-gray-500 dark:text-gray-400 font-medium">
+                    <span class="inline-block w-3 h-3 rounded-full bg-[#ff9999] border border-[#ff6666]"></span>
+                    <span>Pink: Ends in &lt; 1 hour</span>
+                </div>
+                <div class="flex items-center gap-2 text-[10px] text-gray-500 dark:text-gray-400 font-medium">
+                    <span class="relative flex h-3 w-3">
+                      <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                      <span class="relative inline-flex rounded-full h-3 w-3 bg-red-600"></span>
+                    </span>
+                    <span>Red (pulsing): Ends in &lt; 5 mins</span>
+                </div>
+                <div class="flex items-center gap-2 text-[10px] text-gray-500 dark:text-gray-400 font-medium">
+                    <span class="inline-block w-3 h-3 rounded-full bg-gray-400 opacity-60 border border-gray-300 dark:border-gray-600"></span>
+                    <span>Gray: Event is finished</span>
                 </div>
             </div>
             
-            <div class="text-right flex justify-end space-x-4">
-                <a href="/status" class="text-sm text-emerald-600 font-bold hover:underline">System Health 🩺</a>
-                <a href="/stats" class="text-sm text-blue-600 font-bold hover:underline">View Stats ↗</a>
-            </div>
-            <div class="sm:hidden text-xs text-gray-500 text-center mt-3 pt-2 border-t border-gray-200" id="last-sync-label-mobile">Last Synced: Loading...</div>
+            <div class="text-[10px] text-center text-gray-400 dark:text-gray-500 mt-3" id="last-sync-label">Last Synced: Loading...</div>
         </div>
     </div>
     
-    <!-- Timeline Bottom Bar -->
-    <div id="bottom-bar" class="absolute bottom-0 left-0 right-0 z-[1000] bg-white/95 backdrop-blur-sm p-3 sm:px-6 border-t border-gray-200 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] flex flex-col sm:flex-row items-center gap-2 sm:gap-6">
-        <div class="flex justify-between items-center w-full sm:w-auto min-w-[150px]">
-            <span class="font-bold text-sm text-gray-800 mr-2">Time: <span id="current-date-label" class="text-emerald-600">Loading...</span></span>
-            <button id="btn-today" class="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded hover:bg-blue-200 hidden border-none" style="border:none;">Today</button>
+    <!-- Transport Board Modal -->
+    <div id="transport-modal" class="fixed inset-0 bg-black/60 z-[1000] hidden items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col border border-gray-200 dark:border-gray-800">
+            <div class="p-4 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center bg-gray-50 dark:bg-gray-800/50 rounded-t-xl">
+                <h2 class="text-lg font-bold text-gray-800 dark:text-gray-100 uppercase tracking-wider flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                    Departure Board
+                </h2>
+                <button id="close-modal" class="text-gray-500 hover:text-red-500 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
+            <div class="flex border-b border-gray-200 dark:border-gray-800">
+                <button id="tab-ferries" class="flex-1 py-3 text-sm font-bold text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400 bg-blue-50/50 dark:bg-blue-900/20">⛴️ Ferries</button>
+                <button id="tab-trains" class="flex-1 py-3 text-sm font-bold text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">🚆 Trains</button>
+            </div>
+            
+            <div class="flex justify-center gap-6 py-2 bg-gray-100 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+                <label class="flex items-center gap-1.5 text-sm font-bold text-gray-700 dark:text-gray-300 cursor-pointer">
+                    <input type="checkbox" id="filter-arrivals" checked class="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 bg-white border-gray-300 dark:bg-gray-700 dark:border-gray-600 cursor-pointer">
+                    Show Arrivals
+                </label>
+                <label class="flex items-center gap-1.5 text-sm font-bold text-gray-700 dark:text-gray-300 cursor-pointer">
+                    <input type="checkbox" id="filter-departures" checked class="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 bg-white border-gray-300 dark:bg-gray-700 dark:border-gray-600 cursor-pointer">
+                    Show Departures
+                </label>
+            </div>
+            
+            <div class="flex-1 overflow-y-auto p-4 bg-gray-900 rounded-b-xl">
+                <style>
+                    .board-row { display: grid; grid-template-columns: 80px 1fr 100px; gap: 10px; padding: 10px 0; border-bottom: 1px solid #334155; align-items: center; }
+                    .board-time { font-family: monospace; font-size: 1.1rem; color: #fbbf24; font-weight: bold; }
+                    .board-route { font-family: sans-serif; font-size: 0.95rem; color: #f8fafc; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+                    .board-status { font-family: monospace; font-size: 0.9rem; font-weight: bold; text-align: right; }
+                    .status-scheduled { color: #34d399; }
+                    .status-delayed { color: #f87171; }
+                </style>
+                <div id="board-content"></div>
+            </div>
         </div>
-        <div class="relative w-full flex-grow py-2 sm:py-0" id="slider-container">
-            <input type="range" id="time-slider" class="w-full cursor-pointer" min="0" max="0" value="0">
-            <div id="today-marker" class="absolute w-1 h-3 bg-red-500 rounded hidden" style="top: 12px; pointer-events: none;"></div>
-        </div>
-        <div class="hidden sm:block text-xs text-gray-500 whitespace-nowrap min-w-[180px] text-right" id="last-sync-label">Last Synced: Loading...</div>
     </div>
+    
+
     
     <div id="map"></div>
 
@@ -138,6 +267,10 @@
         let allCircles = [];
         let currentSource = 'All';
         let currentDate = null;
+        let isHourlyMode = false;
+        let currentHour = 12;
+        let showFerries = false;
+        let showTrains = false;
 
         const darkMapStyle = [
             {elementType: "geometry", stylers: [{color: "#242f3e"}]},
@@ -161,6 +294,27 @@
         ];
 
         const lightMapStyle = []; // Empty array means default Google Maps light style
+
+        function createSvgMarker(color, text, isFinished, isPulsing = false) {
+            const opacity = isFinished ? 0.6 : 1.0;
+            const textColor = color === '#888888' || color === 'rgb(136, 136, 136)' ? '#555555' : color;
+            
+            // Generate animation tags if pulsing is true
+            const animateTag = isPulsing ? `<animate attributeName="r" values="11;14;11" dur="1.5s" repeatCount="indefinite" />` : '';
+            const animateFill = isPulsing ? `<animate attributeName="opacity" values="1;0.5;1" dur="1.5s" repeatCount="indefinite" />` : '';
+            
+            const svg = `
+                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="42" viewBox="0 0 32 42">
+                    <path d="M16 0C7.16 0 0 7.16 0 16c0 11.24 16 26 16 26s16-14.76 16-26C32 7.16 24.84 0 16 0z" fill="${color}" opacity="${opacity}" stroke="#ffffff" stroke-width="2"/>
+                    <circle cx="16" cy="16" r="11" fill="#ffffff" opacity="${opacity}">
+                        ${animateTag}
+                        ${animateFill}
+                    </circle>
+                    ${text ? `<text x="16" y="19" font-family="Arial, sans-serif" font-size="9" font-weight="bold" fill="${textColor}" text-anchor="middle" opacity="${opacity}">${text}</text>` : ''}
+                </svg>
+            `;
+            return "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(svg.trim());
+        }
 
         async function fetchEvents() {
             try {
@@ -188,19 +342,48 @@
             }
         }
 
-        // Toggle Button Logic
+        // Sidebar logic
+        const panel = document.getElementById('filters-panel');
+        const backdrop = document.getElementById('filters-backdrop');
+        const openBtn = document.getElementById('mobile-menu-btn');
+        const closeBtn = document.getElementById('close-menu-btn');
+
+        function openPanel() {
+            panel.classList.remove('-translate-x-full');
+            backdrop.classList.remove('hidden');
+            setTimeout(() => backdrop.classList.remove('opacity-0'), 10);
+        }
+
+        function closePanel() {
+            panel.classList.add('-translate-x-full');
+            backdrop.classList.add('opacity-0');
+            setTimeout(() => backdrop.classList.add('hidden'), 300);
+        }
+
+        openBtn.addEventListener('click', openPanel);
+        closeBtn.addEventListener('click', closePanel);
+        backdrop.addEventListener('click', closePanel);
+
+        // Theme logic
         const toggleBtn = document.getElementById('theme-toggle');
-        toggleBtn.addEventListener('click', () => {
-            isDarkMode = !isDarkMode;
-            applyMapStyles();
+        function updateThemeUI() {
             if (isDarkMode) {
-                toggleBtn.className = 'dark-mode';
+                document.documentElement.classList.add('dark');
                 toggleBtn.innerHTML = '☀️ Light Mode';
             } else {
-                toggleBtn.className = 'light-mode';
+                document.documentElement.classList.remove('dark');
                 toggleBtn.innerHTML = '🌙 Dark Mode';
             }
+        }
+
+        toggleBtn.addEventListener('click', () => {
+            isDarkMode = !isDarkMode;
+            updateThemeUI();
+            applyMapStyles();
         });
+
+        // Initialize Theme UI
+        updateThemeUI();
 
         // State for POIs
         const poiVisibility = {
@@ -250,28 +433,95 @@
             const infoWindow = new google.maps.InfoWindow();
 
             events.forEach(event => {
-                let iconUrl = "http://maps.google.com/mapfiles/ms/icons/red-dot.png"; // Default Meetup
-                let highlightColor = "#FF0000";
+                let highlightColor = "#ef4444"; // Default Red
                 
                 if (event.source === "Luma") {
-                    iconUrl = "http://maps.google.com/mapfiles/ms/icons/blue-dot.png";
-                    highlightColor = "#0000FF";
+                    highlightColor = "#3b82f6";
                 } else if (event.source === "Meetup") {
-                    iconUrl = "http://maps.google.com/mapfiles/ms/icons/red-dot.png";
-                    highlightColor = "#FF0000";
+                    highlightColor = "#ef4444";
                 } else if (event.source === "AllEvents") {
-                    iconUrl = "http://maps.google.com/mapfiles/ms/icons/green-dot.png";
-                    highlightColor = "#00FF00";
+                    highlightColor = "#10b981";
+                } else if (event.source === "BCFerries") {
+                    highlightColor = "#06b6d4";
+                } else if (event.source === "Train") {
+                    highlightColor = "#f59e0b"; // Amber for Trains
+                }
+
+                // Time logic for color interpolation
+                const now = new Date();
+                let eventEnd;
+                if (event.end_time) {
+                    eventEnd = new Date(event.end_time);
+                } else {
+                    eventEnd = new Date(new Date(event.time).getTime() + (2 * 60 * 60 * 1000));
+                }
+                
+                const minsUntilEnd = (eventEnd.getTime() - now.getTime()) / 60000;
+                let isFinished = false;
+                let markerOpacity = 1.0;
+                let isPulsing = false; // Custom pulsing for urgent events
+
+                if (minsUntilEnd <= -35) {
+                    isFinished = true;
+                    markerOpacity = 0.6;
+                    highlightColor = "#888888"; // Full gray
+                } else if (minsUntilEnd > -35 && minsUntilEnd <= 0) {
+                    // 0 to -35: Gradient from Red to Gray
+                    // 0 mins = 0% gray, -35 mins = 100% gray
+                    const ratio = Math.abs(minsUntilEnd) / 35; // 0.0 to 1.0
+                    // Red: 255, 0, 0
+                    // Gray: 136, 136, 136
+                    const r = Math.round(255 - ((255 - 136) * ratio));
+                    const g = Math.round(0 + (136 * ratio));
+                    const b = Math.round(0 + (136 * ratio));
+                    highlightColor = `rgb(${r}, ${g}, ${b})`;
+                } else if (minsUntilEnd > 0 && minsUntilEnd <= 5) {
+                    // 0 to 5: Solid Red
+                    highlightColor = "#ff0000";
+                    isPulsing = true;
+                } else if (minsUntilEnd > 5 && minsUntilEnd <= 60) {
+                    // 5 to 60: Gradient from Pink to Red
+                    // 60 mins = pink (#ffcccc: 255, 204, 204)
+                    // 5 mins = red (#ff0000: 255, 0, 0)
+                    const ratio = (minsUntilEnd - 5) / 55; // 0.0 at 5 mins, 1.0 at 60 mins
+                    const r = 255;
+                    const g = Math.round(204 * ratio);
+                    const b = Math.round(204 * ratio);
+                    highlightColor = `rgb(${r}, ${g}, ${b})`;
+                }
+
+                let badgeText = "";
+                if (event.source !== "BCFerries" && event.source !== "Train") {
+                    if (event.attendees_count >= 500) badgeText = "500+";
+                    else if (event.attendees_count >= 250) badgeText = "250+";
+                    else if (event.attendees_count >= 150) badgeText = "150+";
+                    else if (event.attendees_count >= 100) badgeText = "100+";
+                    else if (event.attendees_count >= 75) badgeText = "75+";
+                    else if (event.attendees_count >= 50) badgeText = "50+";
+                    else if (event.attendees_count >= 25) badgeText = "25+";
+                }
+                
+                let iconUrl = "";
+                if (event.source === "BCFerries") {
+                    iconUrl = "http://maps.google.com/mapfiles/kml/shapes/ferry.png";
+                } else if (event.source === "Train") {
+                    iconUrl = "http://maps.google.com/mapfiles/kml/shapes/rail.png";
+                } else {
+                    iconUrl = {
+                        url: createSvgMarker(highlightColor, badgeText, isFinished, isPulsing),
+                        scaledSize: new google.maps.Size(32, 42),
+                        anchor: new google.maps.Point(16, 42)
+                    };
                 }
 
                 // Add Highlight Circle based on attendees_count
                 const radius = Math.min(Math.max(event.attendees_count * 2, 50), 500); // Between 50m and 500m
                 const circle = new google.maps.Circle({
                     strokeColor: highlightColor,
-                    strokeOpacity: 0.8,
+                    strokeOpacity: isFinished ? 0.3 : 0.8,
                     strokeWeight: 2,
                     fillColor: highlightColor,
-                    fillOpacity: 0.35,
+                    fillOpacity: isFinished ? 0.1 : 0.35,
                     map: map,
                     center: { lat: event.lat, lng: event.lng },
                     radius: radius,
@@ -283,8 +533,9 @@
                 const marker = new google.maps.Marker({
                     position: { lat: event.lat, lng: event.lng },
                     map: map,
-                    title: event.title,
-                    icon: iconUrl
+                    title: event.title + (isFinished ? " (Finished)" : ""),
+                    icon: iconUrl,
+                    opacity: markerOpacity
                 });
                 marker.source = event.source;
                 marker.date = event.time.split('T')[0];
@@ -295,7 +546,7 @@
                     const urlStr = event.event_url ? `<a href="${event.event_url}" target="_blank" class="text-blue-500 underline mt-2 block">View Event Details</a>` : '';
                     
                     const contentString = `
-                        <div class="p-2 text-gray-800">
+                        <div class="p-2 text-gray-800 dark:text-gray-900">
                             <span class="inline-block bg-gray-200 rounded-full px-3 py-1 text-sm font-semibold text-gray-700 mb-2">${event.source}</span>
                             <h2 class="text-lg font-bold">${event.title}</h2>
                             <p class="text-sm mb-1 font-semibold text-indigo-600">👥 Attendees: ${event.attendees_count || 'Unknown'}</p>
@@ -317,16 +568,60 @@
             });
 
             function applyFilters() {
-                allMarkers.forEach(marker => {
-                    const sourceMatch = (currentSource === 'All' || marker.source === currentSource);
+                allMarkers.forEach((marker, index) => {
+                    const event = events[index];
                     const dateMatch = (currentDate === null || marker.date === currentDate);
-                    marker.setMap(sourceMatch && dateMatch ? map : null);
+                    
+                    let hourMatch = true;
+                    if (isHourlyMode && currentDate) {
+                        const [year, month, day] = currentDate.split('-');
+                        const filterStart = new Date(year, month - 1, day, currentHour, 0, 0).getTime();
+                        const filterEnd = filterStart + (60 * 60 * 1000); // 1 hour later
+                        
+                        const eventStart = new Date(event.time).getTime();
+                        const eventEnd = event.end_time ? new Date(event.end_time).getTime() : eventStart + (2 * 60 * 60 * 1000); // default 2 hrs
+                        
+                        if (eventStart >= filterEnd || eventEnd <= filterStart) {
+                            hourMatch = false;
+                        }
+                    }
+
+                    if (marker.source === "BCFerries") {
+                        marker.setMap(showFerries && dateMatch && hourMatch ? map : null);
+                    } else if (marker.source === "Train") {
+                        marker.setMap(showTrains && dateMatch && hourMatch ? map : null);
+                    } else {
+                        const sourceMatch = (currentSource === 'All' || marker.source === currentSource);
+                        marker.setMap(sourceMatch && dateMatch && hourMatch ? map : null);
+                    }
                 });
                 
-                allCircles.forEach(circle => {
-                    const sourceMatch = (currentSource === 'All' || circle.source === currentSource);
+                allCircles.forEach((circle, index) => {
+                    const event = events[index];
                     const dateMatch = (currentDate === null || circle.date === currentDate);
-                    circle.setMap(sourceMatch && dateMatch ? map : null);
+                    
+                    let hourMatch = true;
+                    if (isHourlyMode && currentDate) {
+                        const [year, month, day] = currentDate.split('-');
+                        const filterStart = new Date(year, month - 1, day, currentHour, 0, 0).getTime();
+                        const filterEnd = filterStart + (60 * 60 * 1000);
+                        
+                        const eventStart = new Date(event.time).getTime();
+                        const eventEnd = event.end_time ? new Date(event.end_time).getTime() : eventStart + (2 * 60 * 60 * 1000);
+                        
+                        if (eventStart >= filterEnd || eventEnd <= filterStart) {
+                            hourMatch = false;
+                        }
+                    }
+
+                    if (circle.source === "BCFerries") {
+                        circle.setMap(showFerries && dateMatch && hourMatch ? map : null);
+                    } else if (circle.source === "Train") {
+                        circle.setMap(showTrains && dateMatch && hourMatch ? map : null);
+                    } else {
+                        const sourceMatch = (currentSource === 'All' || circle.source === currentSource);
+                        circle.setMap(sourceMatch && dateMatch && hourMatch ? map : null);
+                    }
                 });
             }
 
@@ -354,29 +649,13 @@
                 });
             });
 
-            // Date Slider logic
+            // Timeline interaction logic
+            const slider = document.getElementById('time-slider');
+            const dateLabel = document.getElementById('current-date-label');
+            const todayMarker = document.getElementById('today-marker');
+            const btnToday = document.getElementById('btn-today');
+            
             const uniqueDates = [...new Set(events.map(ev => ev.time.split('T')[0]))].sort();
-        // Timeline interaction logic
-        const slider = document.getElementById('time-slider');
-        const dateLabel = document.getElementById('current-date-label');
-        const todayMarker = document.getElementById('today-marker');
-        const btnToday = document.getElementById('btn-today');
-
-        // Toggle mobile filters menu
-        const mobileMenuBtn = document.getElementById('mobile-menu-btn');
-        const closeMenuBtn = document.getElementById('close-menu-btn');
-        const filtersContainer = document.getElementById('filters');
-        
-        if (mobileMenuBtn && closeMenuBtn && filtersContainer) {
-            mobileMenuBtn.addEventListener('click', () => {
-                filtersContainer.classList.remove('hidden');
-                mobileMenuBtn.classList.add('hidden'); // hide the floating button while menu is open
-            });
-            closeMenuBtn.addEventListener('click', () => {
-                filtersContainer.classList.add('hidden');
-                mobileMenuBtn.classList.remove('hidden');
-            });
-        }
             
             if (uniqueDates.length > 0) {
                 slider.max = uniqueDates.length - 1;
@@ -398,7 +677,7 @@
                 // Position the today marker visually
                 if (uniqueDates.length > 1) {
                     const percentage = (defaultIndex / (uniqueDates.length - 1)) * 100;
-                    todayMarker.style.left = `calc(${percentage}% - 2px)`; // subtract half width
+                    todayMarker.style.left = `calc(${percentage}% - 3px)`; // subtract half width
                     todayMarker.classList.remove('hidden');
                     btnToday.classList.remove('hidden');
                 }
@@ -410,7 +689,7 @@
                     
                     // Highlight if it's today
                     if (idx === defaultIndex) {
-                        dateLabel.innerHTML = `${currentDate} <span class="text-xs text-red-500 font-bold ml-1">(Today)</span>`;
+                        dateLabel.innerHTML = `${currentDate} <span class="text-[10px] text-white bg-red-500 rounded px-1 ml-1">Today</span>`;
                     }
                     applyFilters();
                 };
@@ -431,6 +710,73 @@
                 slider.disabled = true;
                 dateLabel.innerText = "No events";
             }
+            
+            // Hourly Toggle Logic
+            const modeDayBtn = document.getElementById('mode-day');
+            const modeHourBtn = document.getElementById('mode-hour');
+            const hourSliderContainer = document.getElementById('hour-slider-container');
+            const hourSlider = document.getElementById('hour-slider');
+            const currentHourLabel = document.getElementById('current-hour-label');
+
+            function updateModeUI() {
+                if (isHourlyMode) {
+                    modeHourBtn.className = "flex-1 text-xs font-bold py-1.5 rounded-md bg-white dark:bg-gray-700 shadow text-blue-600 dark:text-blue-400 transition-all";
+                    modeDayBtn.className = "flex-1 text-xs font-bold py-1.5 rounded-md text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-all";
+                    
+                    hourSliderContainer.classList.remove('hidden');
+                    setTimeout(() => hourSliderContainer.classList.remove('opacity-0'), 10);
+                    currentHourLabel.classList.remove('hidden');
+                    updateHourLabel();
+                } else {
+                    modeDayBtn.className = "flex-1 text-xs font-bold py-1.5 rounded-md bg-white dark:bg-gray-700 shadow text-blue-600 dark:text-blue-400 transition-all";
+                    modeHourBtn.className = "flex-1 text-xs font-bold py-1.5 rounded-md text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-all";
+                    
+                    hourSliderContainer.classList.add('opacity-0');
+                    setTimeout(() => hourSliderContainer.classList.add('hidden'), 300);
+                    currentHourLabel.classList.add('hidden');
+                }
+            }
+
+            function updateHourLabel() {
+                const nextHour = (currentHour + 1) % 24;
+                const formatHour = (h) => h === 0 ? '12 AM' : h < 12 ? `${h} AM` : h === 12 ? '12 PM' : `${h - 12} PM`;
+                currentHourLabel.innerText = `${formatHour(currentHour)} - ${formatHour(nextHour)}`;
+            }
+
+            modeDayBtn.addEventListener('click', () => {
+                if (isHourlyMode) {
+                    isHourlyMode = false;
+                    updateModeUI();
+                    applyFilters();
+                }
+            });
+
+            modeHourBtn.addEventListener('click', () => {
+                if (!isHourlyMode) {
+                    isHourlyMode = true;
+                    updateModeUI();
+                    applyFilters();
+                }
+            });
+
+            hourSlider.addEventListener('input', (e) => {
+                currentHour = parseInt(e.target.value);
+                updateHourLabel();
+                applyFilters();
+            });
+
+            function updateCurrentDate(newDateStr) {
+                currentDate = newDateStr;
+                applyFilters();
+            }
+
+            // Real-time animation updater: Re-apply filters (which updates colors) every minute
+            setInterval(() => {
+                // Only re-apply if the page is visible to save resources
+                if (!document.hidden) {
+                    applyFilters();
+                }
+            }, 60000);
 
             // POI Filter logic
             const savedPoi = localStorage.getItem('yvr_poiVisibility');
@@ -461,9 +807,10 @@
                 });
             });
 
-            // Traffic & Satellite logic
+            // Traffic, Satellite & Ferries logic
             const btnTraffic = document.getElementById('btn-traffic');
             const btnSatellite = document.getElementById('btn-satellite');
+            const btnFerries = document.getElementById('btn-ferries');
 
             const savedTraffic = localStorage.getItem('yvr_showTraffic');
             if (savedTraffic === 'true') {
@@ -477,6 +824,12 @@
                 showSatellite = true;
                 btnSatellite.classList.add('active');
                 map.setMapTypeId('satellite');
+            }
+            
+            const savedFerries = localStorage.getItem('yvr_showFerries');
+            if (savedFerries === 'true') {
+                showFerries = true;
+                btnFerries.classList.add('active');
             }
 
             btnTraffic.addEventListener('click', () => {
@@ -501,6 +854,198 @@
                     btnSatellite.classList.remove('active');
                     map.setMapTypeId('roadmap');
                 }
+            });
+            
+            btnFerries.addEventListener('click', () => {
+                showFerries = !showFerries;
+                localStorage.setItem('yvr_showFerries', showFerries);
+                if (showFerries) {
+                    btnFerries.classList.add('active');
+                } else {
+                    btnFerries.classList.remove('active');
+                }
+                applyFilters();
+            });
+
+            const btnTrains = document.getElementById('btn-trains');
+            const savedTrains = localStorage.getItem('yvr_showTrains');
+            if (savedTrains === 'true') {
+                showTrains = true;
+                btnTrains.classList.add('active');
+            }
+
+            btnTrains.addEventListener('click', () => {
+                showTrains = !showTrains;
+                localStorage.setItem('yvr_showTrains', showTrains);
+                if (showTrains) {
+                    btnTrains.classList.add('active');
+                } else {
+                    btnTrains.classList.remove('active');
+                }
+                applyFilters();
+            });
+            
+            // Manual Sync Logic
+            const btnUpdateFerries = document.getElementById('btn-update-ferries');
+            const ferrySpinner = document.getElementById('ferry-spinner');
+            if (btnUpdateFerries) {
+                btnUpdateFerries.addEventListener('click', async () => {
+                    btnUpdateFerries.disabled = true;
+                    ferrySpinner.classList.remove('hidden');
+                    try {
+                        const res = await fetch('/api/scrape/ferries', { method: 'POST' });
+                        const data = await res.json();
+                        if (data.status === 'success') {
+                            alert(data.message);
+                            location.reload();
+                        } else {
+                            alert("Error: " + data.message);
+                        }
+                    } catch (e) {
+                        alert("Network error: " + e.message);
+                    } finally {
+                        btnUpdateFerries.disabled = false;
+                        ferrySpinner.classList.add('hidden');
+                    }
+                });
+            }
+
+            const btnUpdateTrains = document.getElementById('btn-update-trains');
+            const trainSpinner = document.getElementById('train-spinner');
+            if (btnUpdateTrains) {
+                btnUpdateTrains.addEventListener('click', async () => {
+                    btnUpdateTrains.disabled = true;
+                    trainSpinner.classList.remove('hidden');
+                    try {
+                        const res = await fetch('/api/scrape/trains', { method: 'POST' });
+                        const data = await res.json();
+                        if (data.status === 'success') {
+                            alert(data.message);
+                            location.reload();
+                        } else {
+                            alert("Error: " + data.message);
+                        }
+                    } catch (e) {
+                        alert("Network error: " + e.message);
+                    } finally {
+                        btnUpdateTrains.disabled = false;
+                        trainSpinner.classList.add('hidden');
+                    }
+                });
+            }
+
+            // Modal Logic
+            const modal = document.getElementById('transport-modal');
+            const btnOpenModal = document.getElementById('btn-transport-board');
+            const btnCloseModal = document.getElementById('close-modal');
+            const tabFerries = document.getElementById('tab-ferries');
+            const tabTrains = document.getElementById('tab-trains');
+            const boardContent = document.getElementById('board-content');
+            const filterArrivals = document.getElementById('filter-arrivals');
+            const filterDepartures = document.getElementById('filter-departures');
+            
+            let activeTab = 'ferries';
+            
+            function renderBoard() {
+                boardContent.innerHTML = '';
+                
+                const showArrivals = filterArrivals.checked;
+                const showDepartures = filterDepartures.checked;
+                
+                let boardEvents = [];
+                if (activeTab === 'ferries') {
+                    boardEvents = events.filter(e => e.source === 'BCFerries' && (currentDate === null || e.time.startsWith(currentDate)));
+                } else {
+                    boardEvents = events.filter(e => e.source === 'Train' && (currentDate === null || e.time.startsWith(currentDate)));
+                }
+                
+                // Sort by time
+                boardEvents.sort((a, b) => new Date(a.time) - new Date(b.time));
+                
+                if (boardEvents.length === 0) {
+                    boardContent.innerHTML = `<div class="text-center py-8 text-gray-400 font-mono">NO DATA FOR SELECTED DATE</div>`;
+                    return;
+                }
+                
+                boardEvents.forEach(e => {
+                    const timeObj = new Date(e.time);
+                    
+                    let status = "SCHEDULED";
+                    let statusClass = "status-scheduled";
+                    
+                    if (timeObj < new Date()) {
+                        status = "COMPLETED";
+                        statusClass = "text-gray-500";
+                    }
+                    
+                    let timeHtml = "";
+                    if (e.delay_minutes && e.delay_minutes > 0) {
+                        status = `DELAYED ${e.delay_minutes} MIN`;
+                        statusClass = "status-delayed";
+                        const newTime = new Date(timeObj.getTime() + e.delay_minutes * 60000);
+                        const oldTimeStr = timeObj.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                        const newTimeStr = newTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                        timeHtml = `<div class="board-time line-through text-gray-500 text-sm">${oldTimeStr}</div><div class="board-time">${newTimeStr}</div>`;
+                    } else {
+                        timeHtml = `<div class="board-time">${timeObj.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>`;
+                    }
+                    
+                    const titleLower = e.title.toLowerCase();
+                    const isArrival = titleLower.includes('arrival');
+                    const isDeparture = titleLower.includes('departure');
+                    
+                    let isBlurred = false;
+                    if (isArrival && !showArrivals) isBlurred = true;
+                    if (isDeparture && !showDepartures) isBlurred = true;
+                    
+                    const blurClass = isBlurred ? "opacity-40 blur-[2px] pointer-events-none transition-all duration-300" : "transition-all duration-300";
+                    
+                    // Highlight logic for upcoming ferries within +2 hours
+                    let highlightClass = "border-transparent";
+                    const now = new Date();
+                    const twoHoursFromNow = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+                    
+                    if (e.source === 'BCFerries' && timeObj > now && timeObj <= twoHoursFromNow) {
+                        highlightClass = "border-amber-400 bg-amber-50 dark:bg-amber-900/30 rounded-lg shadow-sm";
+                    }
+
+                    const html = `
+                        <div class="board-row ${blurClass} border ${highlightClass} px-2 py-3 mb-1">
+                            <div>${timeHtml}</div>
+                            <div class="board-route">${e.title}</div>
+                            <div class="board-status ${statusClass}">${status}</div>
+                        </div>
+                    `;
+                    boardContent.insertAdjacentHTML('beforeend', html);
+                });
+            }
+            
+            filterArrivals.addEventListener('change', renderBoard);
+            filterDepartures.addEventListener('change', renderBoard);
+            
+            btnOpenModal.addEventListener('click', () => {
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+                renderBoard();
+            });
+            
+            btnCloseModal.addEventListener('click', () => {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            });
+            
+            tabFerries.addEventListener('click', () => {
+                activeTab = 'ferries';
+                tabFerries.className = "flex-1 py-3 text-sm font-bold text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400 bg-blue-50/50 dark:bg-blue-900/20";
+                tabTrains.className = "flex-1 py-3 text-sm font-bold text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200";
+                renderBoard();
+            });
+            
+            tabTrains.addEventListener('click', () => {
+                activeTab = 'trains';
+                tabTrains.className = "flex-1 py-3 text-sm font-bold text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400 bg-blue-50/50 dark:bg-blue-900/20";
+                tabFerries.className = "flex-1 py-3 text-sm font-bold text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200";
+                renderBoard();
             });
         }
     </script>

@@ -11,16 +11,16 @@ def get_lat_lng(address: str) -> Tuple[Optional[float], Optional[float]]:
     Uses Google Maps Geocoding API to resolve a text address into lat, lng.
     Falls back to a default location (Vancouver center) if geocoding fails.
     """
-    api_key = os.getenv("GOOGLE_MAPS_API_KEY")
+    api_key = os.getenv("GEOCODING_API_KEY") or os.getenv("GOOGLE_MAPS_API_KEY")
     if not api_key or api_key == "YOUR_API_KEY_HERE":
-        print("Geocoding failed: No valid GOOGLE_MAPS_API_KEY found.")
+        print("Geocoding failed: No valid GEOCODING_API_KEY found.")
         return None, None
         
     if not address or not address.strip():
         return None, None
         
-    # Append 'Vancouver, BC' to help the geocoder if it's just a venue name
-    search_address = f"{address.strip()}, Vancouver, BC, Canada"
+    # Append 'BC, Canada' to help the geocoder if it's just a venue name
+    search_address = f"{address.strip()}, BC, Canada"
     
     if search_address in _GEOCODE_CACHE:
         return _GEOCODE_CACHE[search_address]

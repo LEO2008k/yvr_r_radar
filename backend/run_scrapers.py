@@ -1,8 +1,8 @@
 import os
 import asyncio
-from scrapers import LumaScraper, MeetupScraper, AllEventsScraper
+from scrapers import LumaScraper, MeetupScraper, AllEventsScraper, TrainsScraper
 from database import SessionLocal, engine
-from models import Event, Base
+from models import Event, Base, ScraperStatus
 from datetime import datetime, timedelta
 
 # Initialize tables
@@ -13,16 +13,41 @@ def scrape_all():
     scrapers = [
         LumaScraper(),
         MeetupScraper(),
-        AllEventsScraper()
+        AllEventsScraper(),
+        TrainsScraper()
     ]
     
     all_events = []
     
+    db = SessionLocal()
     for scraper in scrapers:
-        print(f"Running {scraper.__class__.__name__}...")
-        events = scraper.scrape()
-        all_events.extend(events)
-        print(f"Got {len(events)} events from {scraper.__class__.__name__}")
+        scraper_name = scraper.__class__.__name__
+        print(f"Running {scraper_name}...")
+        try:
+            events = scraper.scrape()
+            all_events.extend(events)
+            
+            # Log success
+            status_entry = ScraperStatus(
+                scraper_name=scraper_name,
+                status="SUCCESS",
+                events_found=len(events),
+                error_message=None
+            )
+            db.add(status_entry)
+            print(f"Got {len(events)} events from {scraper_name}")
+        except Exception as e:
+            # Log error
+            status_entry = ScraperStatus(
+                scraper_name=scraper_name,
+                status="ERROR",
+                events_found=0,
+                error_message=str(e)
+            )
+            db.add(status_entry)
+            print(f"Error running {scraper_name}: {e}")
+            
+    db.commit()
         
     print(f"Total events scraped: {len(all_events)}")
     
@@ -30,7 +55,6 @@ def scrape_all():
     for ev in all_events:
         print(f"- {ev['title']} at {ev['time']} [{ev['source']}]")
         
-    db = SessionLocal()
     try:
         from models import ScrapeLog
         
@@ -60,7 +84,8 @@ def scrape_all():
                     address=ev['address'],
                     source=ev['source'],
                     attendees_count=ev.get('attendees_count', 0),
-                    event_url=ev.get('event_url')
+                    event_url=ev.get('event_url'),
+                    delay_minutes=ev.get('delay_minutes')
                 )
                 db.add(new_event)
                 saved_count += 1
