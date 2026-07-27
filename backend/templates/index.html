@@ -244,11 +244,21 @@
         <div id="tab-content-history" class="p-4 overflow-y-auto flex-1 space-y-6 hidden">
             <div>
                 <h3 class="text-lg font-bold mb-2">Location History</h3>
-                <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">View the path of the broadcasting phone over the last 24 hours.</p>
+                <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">Select a timeframe to view the path of the broadcasting phone.</p>
+                
+                <div class="mb-4">
+                    <label class="text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2 block">Timeframe</label>
+                    <select id="history-range" class="w-full pl-3 pr-3 py-2 text-sm bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white transition-colors">
+                        <option value="day">Last 24 Hours</option>
+                        <option value="week">Last 7 Days</option>
+                        <option value="month">Last 30 Days</option>
+                        <option value="year">Last 365 Days</option>
+                    </select>
+                </div>
                 
                 <button id="show-history-btn" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-4 rounded-lg shadow transition-colors mb-4 flex items-center justify-center gap-2">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h4l3-9 5 18 3-9h5"/></svg>
-                    Show Today's Path
+                    Show Path
                 </button>
                 <button id="clear-history-btn" class="w-full border border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 font-bold py-2 px-4 rounded-lg shadow-sm transition-colors flex items-center justify-center gap-2">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
@@ -973,15 +983,16 @@
                 showHistoryBtn.addEventListener('click', async () => {
                     showHistoryBtn.innerHTML = '⏳ Loading...';
                     try {
-                        const res = await fetch('/api/location/history');
+                        const range = document.getElementById('history-range') ? document.getElementById('history-range').value : 'day';
+                        const res = await fetch(`/api/location/history?range_type=${range}`);
                         if (!res.ok) throw new Error("Failed to fetch");
                         const data = await res.json();
                         
                         clearHistory();
                         
                         if (data.length === 0) {
-                            alert("No location history available for today.");
-                            showHistoryBtn.innerHTML = "📍 Show Today's Path";
+                            alert("No location history available for the selected timeframe.");
+                            showHistoryBtn.innerHTML = "📍 Show Path";
                             return;
                         }
                         
@@ -1047,7 +1058,7 @@
                         console.error(e);
                         alert("Error loading location history.");
                     }
-                    showHistoryBtn.innerHTML = "📍 Show Today's Path";
+                    showHistoryBtn.innerHTML = "📍 Show Path";
                 });
             }
 

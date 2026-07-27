@@ -219,8 +219,8 @@ async def update_location(loc: MobileLocation):
         )
         db.add(new_loc)
         
-        # Prune history older than 24 hours to keep DB small
-        cutoff = now - timedelta(hours=24)
+        # Prune history older than 1 year to keep DB manageable
+        cutoff = now - timedelta(days=365)
         db.query(LocationHistory).filter(LocationHistory.timestamp < cutoff).delete()
         db.commit()
     finally:
@@ -233,11 +233,19 @@ async def get_location():
     return JSONResponse(content=latest_mobile_location)
 
 @app.get("/api/location/history", dependencies=[Depends(require_auth)])
-async def get_location_history():
+async def get_location_history(range_type: str = "day"):
     db = SessionLocal()
     try:
-        # Get history from the last 24 hours ordered by time
-        cutoff = datetime.now() - timedelta(hours=24)
+        now = datetime.now()
+        if range_type == "week":
+            cutoff = now - timedelta(days=7)
+        elif range_type == "month":
+            cutoff = now - timedelta(days=30)
+        elif range_type == "year":
+            cutoff = now - timedelta(days=365)
+        else: # default to day
+            cutoff = now - timedelta(hours=24)
+            
         history = db.query(LocationHistory).filter(
             LocationHistory.timestamp >= cutoff
         ).order_by(LocationHistory.timestamp.asc()).all()

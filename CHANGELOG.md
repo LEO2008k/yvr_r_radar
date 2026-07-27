@@ -7,9 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Added
+- **Location History Timeframe Filter**: Added a dropdown to filter location history by day, week, month, or year.
 - **Location History**: Added tracking of the mobile device location history with a database table `LocationHistory`.
 - **UI Tabs**: Refactored the sidebar menu into "Radar" and "History" tabs for better user experience.
-- **Path Drawing**: Added functionality to draw a polyline and time markers on the map for the day's location history, costing $0 in API fees.
+- **Path Drawing**: Added functionality to draw a polyline and time markers on the map for the location history, costing $0 in API fees.
 
 ### Changed
 - Replaced minimum attendees slider with double range slider.
