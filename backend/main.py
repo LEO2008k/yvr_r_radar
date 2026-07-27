@@ -264,7 +264,10 @@ async def get_location_history(range_type: str = "day", snap: bool = False):
             for h in history
         ]
 
-        if snap and GOOGLE_MAPS_API_KEY and GOOGLE_MAPS_API_KEY != "YOUR_API_KEY_HERE":
+        # Prefer GEOCODING_API_KEY for backend requests to avoid HTTP referrer restrictions
+        backend_api_key = os.getenv("GEOCODING_API_KEY") or GOOGLE_MAPS_API_KEY
+
+        if snap and backend_api_key and backend_api_key != "YOUR_API_KEY_HERE":
             def haversine(lat1, lon1, lat2, lon2):
                 R = 6371000
                 phi1, phi2 = math.radians(lat1), math.radians(lat2)
@@ -294,7 +297,7 @@ async def get_location_history(range_type: str = "day", snap: bool = False):
                     chunk = filtered[i:i+chunk_size]
                     path_str = "|".join([f"{pt['lat']},{pt['lng']}" for pt in chunk])
                     
-                    url = f"https://roads.googleapis.com/v1/snapToRoads?path={path_str}&interpolate=true&key={GOOGLE_MAPS_API_KEY}"
+                    url = f"https://roads.googleapis.com/v1/snapToRoads?path={path_str}&interpolate=true&key={backend_api_key}"
                     try:
                         resp = await client.get(url, timeout=10.0)
                         if resp.status_code == 200:
