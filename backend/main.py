@@ -13,6 +13,18 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from run_scrapers import scrape_all
 from contextlib import asynccontextmanager
 import urllib.parse
+from pydantic import BaseModel
+from typing import Optional
+
+class MobileLocation(BaseModel):
+    lat: float
+    lng: float
+
+latest_mobile_location = {
+    "lat": None,
+    "lng": None,
+    "updated_at": None
+}
 
 def check_api_health():
     db = SessionLocal()
@@ -185,6 +197,17 @@ async def get_events():
         return JSONResponse(content=results)
     finally:
         db.close()
+
+@app.post("/api/location", dependencies=[Depends(require_auth)])
+async def update_location(loc: MobileLocation):
+    latest_mobile_location["lat"] = loc.lat
+    latest_mobile_location["lng"] = loc.lng
+    latest_mobile_location["updated_at"] = datetime.now().isoformat()
+    return {"status": "ok"}
+
+@app.get("/api/location", dependencies=[Depends(require_auth)])
+async def get_location():
+    return JSONResponse(content=latest_mobile_location)
 
 @app.get("/stats", response_class=HTMLResponse)
 async def read_stats(request: Request):
@@ -412,6 +435,59 @@ async def scrape_trains():
         db.add(status_entry)
         db.commit()
         return {"status": "success", "message": f"Scraped and saved {saved_count} train events."}
+    except Exception as e:
+        db.rollback()
+        status_entry = ScraperStatus(
+            scraper_name=scraper_name,
+            status="ERROR",
+            events_found=0,
+            error_message=str(e)
+        )
+        db.add(status_entry)
+        db.commit()
+        return {"status": "error", "message": str(e)}
+    finally:
+        db.close()
+
+@app.post("/api/scrape/afterparties")
+async def scrape_afterparties():
+    from scrapers.afterparties import AfterpartiesScraper
+    db = SessionLocal()
+    scraper_name = "AfterpartiesScraper"
+    try:
+        scraper = AfterpartiesScraper()
+        events = scraper.scrape()
+        
+        db.query(Event).filter(Event.source == "Afterparty").delete()
+        
+        saved_count = 0
+        for ev in events:
+            time_dt = datetime.strptime(ev["time"], "%Y-%m-%d %H:%M")
+            end_time_dt = datetime.strptime(ev["end_time"], "%Y-%m-%d %H:%M") if ev.get("end_time") else None
+            
+            db_event = Event(
+                title=ev["title"],
+                time=time_dt,
+                end_time=end_time_dt,
+                lat=ev["lat"],
+                lng=ev["lng"],
+                address=ev["address"],
+                source=ev["source"],
+                attendees_count=ev.get("attendees_count", 0),
+                event_url=ev.get("event_url", "")
+            )
+            db.add(db_event)
+            saved_count += 1
+            
+        status_entry = ScraperStatus(
+            scraper_name=scraper_name,
+            status="SUCCESS",
+            events_found=saved_count,
+            error_message=None
+        )
+        db.add(status_entry)
+        db.commit()
+        return {"status": "success", "message": f"Scraped and saved {saved_count} afterparty events."}
     except Exception as e:
         db.rollback()
         status_entry = ScraperStatus(

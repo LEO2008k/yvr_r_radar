@@ -225,6 +225,9 @@
                 <button id="radius-toggle" class="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-bold rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors shadow-sm">
                     ⭕ Show Event Radius
                 </button>
+                <button id="broadcast-toggle" class="w-full flex items-center justify-center gap-2 px-4 py-2 mt-2 text-sm font-bold rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors shadow-sm">
+                    📱 Broadcast Location
+                </button>
             </div>
         </div>
         
@@ -325,6 +328,8 @@
         let showFerries = false;
         let showTrains = false;
         let userLocationMarker = null;
+        let adminLocationMarker = null;
+        let broadcastWatchId = null;
 
         const darkMapStyle = [
             {elementType: "geometry", stylers: [{color: "#242f3e"}]},
@@ -811,6 +816,81 @@
                     }
                 });
             }
+
+            // Broadcast Location Logic
+            const broadcastBtn = document.getElementById('broadcast-toggle');
+            if (broadcastBtn) {
+                broadcastBtn.addEventListener('click', () => {
+                    if (!navigator.geolocation) {
+                        alert("Error: Your browser doesn't support geolocation.");
+                        return;
+                    }
+                    if (broadcastWatchId !== null) {
+                        // Stop broadcasting
+                        navigator.geolocation.clearWatch(broadcastWatchId);
+                        broadcastWatchId = null;
+                        broadcastBtn.classList.remove('bg-emerald-100', 'dark:bg-emerald-900', 'border-emerald-500');
+                        broadcastBtn.innerHTML = '📱 Broadcast Location';
+                    } else {
+                        // Start broadcasting
+                        broadcastBtn.classList.add('bg-emerald-100', 'dark:bg-emerald-900', 'border-emerald-500');
+                        broadcastBtn.innerHTML = '📡 Broadcasting...';
+                        broadcastWatchId = navigator.geolocation.watchPosition(
+                            async (position) => {
+                                const pos = {
+                                    lat: position.coords.latitude,
+                                    lng: position.coords.longitude,
+                                };
+                                try {
+                                    await fetch('/api/location', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify(pos)
+                                    });
+                                } catch (e) {
+                                    console.error("Failed to broadcast location", e);
+                                }
+                            },
+                            (error) => {
+                                alert('Error broadcasting location. Please ensure permissions are granted.');
+                                navigator.geolocation.clearWatch(broadcastWatchId);
+                                broadcastWatchId = null;
+                                broadcastBtn.classList.remove('bg-emerald-100', 'dark:bg-emerald-900', 'border-emerald-500');
+                                broadcastBtn.innerHTML = '📱 Broadcast Location';
+                            },
+                            { enableHighAccuracy: true, maximumAge: 0 }
+                        );
+                    }
+                });
+            }
+
+            // Poll Admin Location
+            setInterval(async () => {
+                try {
+                    const res = await fetch('/api/location');
+                    if (!res.ok) return;
+                    const data = await res.json();
+                    if (data.lat !== null && data.lng !== null) {
+                        const pos = { lat: data.lat, lng: data.lng };
+                        if (!adminLocationMarker) {
+                            adminLocationMarker = new google.maps.Marker({
+                                position: pos,
+                                map: map,
+                                icon: {
+                                    url: 'data:image/svg+xml;utf-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="32" height="32"><circle cx="12" cy="12" r="10" fill="%2310b981" stroke="white" stroke-width="2"/><text x="12" y="17" font-size="14" text-anchor="middle" fill="white">📱</text></svg>',
+                                    anchor: new google.maps.Point(16, 16)
+                                },
+                                title: 'Admin Phone',
+                                zIndex: 10000
+                            });
+                        } else {
+                            adminLocationMarker.setPosition(pos);
+                        }
+                    }
+                } catch (e) {
+                    console.error("Failed to fetch admin location", e);
+                }
+            }, 5000);
 
             // Bind Slider input
             const minSlider = document.getElementById('min-attendees-slider');
