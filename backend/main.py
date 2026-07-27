@@ -13,6 +13,8 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from run_scrapers import scrape_all
 from contextlib import asynccontextmanager
 import urllib.parse
+import math
+import urllib.parse
 from pydantic import BaseModel
 from typing import Optional
 
@@ -236,7 +238,7 @@ async def get_location():
     return JSONResponse(content=latest_mobile_location)
 
 @app.get("/api/location/history", dependencies=[Depends(require_auth)])
-async def get_location_history(range_type: str = "day"):
+async def get_location_history(range_type: str = "day", snap: bool = False):
     db = SessionLocal()
     try:
         now = datetime.now()
@@ -261,6 +263,60 @@ async def get_location_history(range_type: str = "day"):
             }
             for h in history
         ]
+
+        if snap and GOOGLE_MAPS_API_KEY and GOOGLE_MAPS_API_KEY != "YOUR_API_KEY_HERE":
+            def haversine(lat1, lon1, lat2, lon2):
+                R = 6371000
+                phi1, phi2 = math.radians(lat1), math.radians(lat2)
+                dphi = math.radians(lat2 - lat1)
+                dlambda = math.radians(lon2 - lon1)
+                a = math.sin(dphi/2)**2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda/2)**2
+                return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+            filtered = []
+            last_pt = None
+            for pt in results:
+                if not last_pt:
+                    filtered.append(pt)
+                    last_pt = pt
+                else:
+                    dist = haversine(last_pt["lat"], last_pt["lng"], pt["lat"], pt["lng"])
+                    if dist > 50:
+                        filtered.append(pt)
+                        last_pt = pt
+            
+            # Google Roads API allows max 100 points per request
+            snapped_results = []
+            chunk_size = 100
+            
+            async with httpx.AsyncClient() as client:
+                for i in range(0, len(filtered), chunk_size):
+                    chunk = filtered[i:i+chunk_size]
+                    path_str = "|".join([f"{pt['lat']},{pt['lng']}" for pt in chunk])
+                    
+                    url = f"https://roads.googleapis.com/v1/snapToRoads?path={path_str}&interpolate=true&key={GOOGLE_MAPS_API_KEY}"
+                    try:
+                        resp = await client.get(url, timeout=10.0)
+                        if resp.status_code == 200:
+                            data = resp.json()
+                            if "snappedPoints" in data:
+                                for sp in data["snappedPoints"]:
+                                    loc = sp["location"]
+                                    orig_idx = sp.get("originalIndex")
+                                    # If it's an interpolated point, we don't have an exact timestamp
+                                    ts = chunk[orig_idx]["timestamp"] if orig_idx is not None and orig_idx < len(chunk) else None
+                                    snapped_results.append({
+                                        "lat": loc["latitude"],
+                                        "lng": loc["longitude"],
+                                        "timestamp": ts
+                                    })
+                    except Exception as e:
+                        print("Error snapping to roads:", e)
+                        
+            # If snapping worked and returned points, use them
+            if snapped_results:
+                results = snapped_results
+
         return JSONResponse(content=results)
     finally:
         db.close()

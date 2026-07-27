@@ -7,13 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Added
+- **Snap to Roads**: Integrated Google Maps Roads API to snap GPS tracking routes perfectly to the street grid for high accuracy. Added a UI toggle and backend chunking/filtering to optimize API costs.
 - **Device Type Detection**: The live location marker now shows a mobile (📱) or laptop (💻) icon depending on the broadcasting device.
 - **Auto-Broadcasting**: The `Broadcast Location` toggle state is saved to `localStorage` and automatically resumes broadcasting on page reload.
 - **Location History Timeframe Filter**: Added a dropdown to filter location history by day, week, month, or year.
 - **Location History**: Added tracking of the mobile device location history with a database table `LocationHistory`.
 - **UI Tabs**: Refactored the sidebar menu into "Radar" and "History" tabs for better user experience.
 - **Unified Menu UI**: The hamburger menu button is now available on desktop as well, and the sidebar can be toggled on/off to save screen space.
-- **Path Drawing**: Added functionality to draw a polyline and time markers on the map for the location history, costing $0 in API fees.
+- **Path Drawing**: Added functionality to draw a polyline and time markers on the map for the location history, costing $0 in API fees (without snap).
 
 ### Changed
 - Replaced minimum attendees slider with double range slider.
