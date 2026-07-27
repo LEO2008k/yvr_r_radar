@@ -199,6 +199,7 @@
                 <div class="flex flex-wrap gap-2">
                     <button id="btn-traffic" class="layer-btn px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 transition-colors">🚗 Traffic</button>
                     <button id="btn-satellite" class="layer-btn px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 transition-colors">🌍 Satellite</button>
+                    <button id="btn-hotels" class="layer-btn px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 transition-colors">🏨 Hotels</button>
                     <button id="btn-ferries" class="layer-btn px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 transition-colors">⛴️ BC Ferries</button>
                     <button id="btn-trains" class="layer-btn px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 transition-colors">🚆 Trains</button>
                 </div>
@@ -1345,9 +1346,76 @@
                 });
             });
 
-            // Traffic, Satellite & Ferries logic
+            // Traffic, Satellite, Hotels & Ferries logic
             const btnTraffic = document.getElementById('btn-traffic');
             const btnSatellite = document.getElementById('btn-satellite');
+            const btnHotels = document.getElementById('btn-hotels');
+            
+            const topHotels = [
+                {name: "Fairmont Pacific Rim", lat: 49.2882, lng: -123.1171},
+                {name: "Fairmont Hotel Vancouver", lat: 49.2838, lng: -123.1209},
+                {name: "Fairmont Waterfront", lat: 49.2869, lng: -123.1132},
+                {name: "Pan Pacific Vancouver", lat: 49.2881, lng: -123.1118},
+                {name: "Hyatt Regency Vancouver", lat: 49.2851, lng: -123.1205},
+                {name: "The Sutton Place Hotel", lat: 49.2825, lng: -123.1235},
+                {name: "Paradox Hotel Vancouver", lat: 49.2861, lng: -123.1218},
+                {name: "JW Marriott Parq Vancouver", lat: 49.2764, lng: -123.1090},
+                {name: "The Douglas", lat: 49.2764, lng: -123.1090},
+                {name: "Sheraton Vancouver Wall Centre", lat: 49.2801, lng: -123.1264},
+                {name: "Rosewood Hotel Georgia", lat: 49.2831, lng: -123.1189},
+                {name: "Shangri-La Vancouver", lat: 49.2857, lng: -123.1226},
+                {name: "The Westin Bayshore", lat: 49.2923, lng: -123.1293},
+                {name: "Pinnacle Hotel Harbourfront", lat: 49.2884, lng: -123.1197},
+                {name: "Coast Coal Harbour Hotel", lat: 49.2887, lng: -123.1211},
+                {name: "Vancouver Marriott Pinnacle", lat: 49.2881, lng: -123.1189},
+                {name: "Century Plaza Hotel", lat: 49.2805, lng: -123.1275},
+                {name: "OPUS Hotel", lat: 49.2745, lng: -123.1206},
+                {name: "Sandman Hotel Vancouver Downtown", lat: 49.2808, lng: -123.1120},
+                {name: "Georgian Court Hotel", lat: 49.2787, lng: -123.1141},
+                {name: "Hilton Vancouver Metrotown", lat: 49.2274, lng: -123.0016},
+                {name: "Executive Plaza Hotel Metro Vancouver", lat: 49.2483, lng: -122.8906},
+                {name: "River Rock Casino Resort", lat: 49.1963, lng: -123.1269},
+                {name: "Sheraton Vancouver Guildford", lat: 49.1911, lng: -122.8021}
+            ];
+            let hotelMarkers = [];
+            let showHotels = false;
+
+            btnHotels.addEventListener('click', () => {
+                showHotels = !showHotels;
+                if (showHotels) {
+                    btnHotels.classList.add('active');
+                    btnHotels.classList.add('bg-blue-100');
+                    btnHotels.classList.add('dark:bg-blue-900/40');
+                    
+                    // Render hotel markers
+                    topHotels.forEach(hotel => {
+                        const iconHtml = `<div class="bg-indigo-600 rounded-full w-8 h-8 flex items-center justify-center text-white shadow-lg border-2 border-white"><span class="text-sm">🏨</span></div>`;
+                        const marker = new google.maps.marker.AdvancedMarkerView({
+                            map: map,
+                            position: { lat: hotel.lat, lng: hotel.lng },
+                            title: hotel.name,
+                            content: (new DOMParser().parseFromString(iconHtml, 'text/html')).body.firstChild
+                        });
+                        hotelMarkers.push(marker);
+                        
+                        // Add click listener for a simple info window
+                        marker.addListener('click', () => {
+                            const infoWindow = new google.maps.InfoWindow({
+                                content: `<div class="p-2 font-bold text-gray-900">${hotel.name}</div>`
+                            });
+                            infoWindow.open(map, marker);
+                        });
+                    });
+                } else {
+                    btnHotels.classList.remove('active');
+                    btnHotels.classList.remove('bg-blue-100');
+                    btnHotels.classList.remove('dark:bg-blue-900/40');
+                    
+                    // Clear markers
+                    hotelMarkers.forEach(m => m.map = null);
+                    hotelMarkers = [];
+                }
+            });
             const btnFerries = document.getElementById('btn-ferries');
 
             const savedTraffic = localStorage.getItem('yvr_showTraffic');
