@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+- **Location History**: Added tracking of the mobile device location history with a database table `LocationHistory`.
+- **UI Tabs**: Refactored the sidebar menu into "Radar" and "History" tabs for better user experience.
+- **Path Drawing**: Added functionality to draw a polyline and time markers on the map for the day's location history, costing $0 in API fees.
+
+### Changed
+- Replaced minimum attendees slider with double range slider.
+- Clustered markers and added radius toggle.
+
+
 
 ### Added
 - **Geolocation (`Locate Me`)**: A new button on the map that uses the browser's Geolocation API to pan the map to the user's current location and display a pulsing blue marker.

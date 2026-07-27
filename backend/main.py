@@ -5,9 +5,9 @@ import httpx
 from bs4 import BeautifulSoup
 import os
 import json
-from datetime import datetime, date, time
-from database import SessionLocal
-from models import Event, ScrapeLog, ApiStatus, ScraperStatus
+from datetime import datetime, date, time, timedelta
+from database import SessionLocal, engine
+from models import Event, ScrapeLog, ApiStatus, ScraperStatus, LocationHistory, Base
 from starlette.middleware.sessions import SessionMiddleware
 from apscheduler.schedulers.background import BackgroundScheduler
 from run_scrapers import scrape_all
@@ -101,7 +101,10 @@ async def lifespan(app: FastAPI):
     # Shutdown the scheduler when app stops
     scheduler.shutdown()
 
-app = FastAPI(title="YVR Rideshare Radar", lifespan=lifespan)
+# Ensure all tables are created
+Base.metadata.create_all(bind=engine)
+
+app = FastAPI(title="YVR Radar", version="1.0.0", lifespan=lifespan)
 app.add_middleware(SessionMiddleware, secret_key=os.getenv("SESSION_SECRET", "super-secret-key"))
 templates = Jinja2Templates(directory="templates")
 
@@ -200,14 +203,56 @@ async def get_events():
 
 @app.post("/api/location", dependencies=[Depends(require_auth)])
 async def update_location(loc: MobileLocation):
+    # Update global state for quick latest poll
     latest_mobile_location["lat"] = loc.lat
     latest_mobile_location["lng"] = loc.lng
-    latest_mobile_location["updated_at"] = datetime.now().isoformat()
+    now = datetime.now()
+    latest_mobile_location["updated_at"] = now.isoformat()
+    
+    # Save to database history
+    db = SessionLocal()
+    try:
+        new_loc = LocationHistory(
+            lat=loc.lat,
+            lng=loc.lng,
+            timestamp=now
+        )
+        db.add(new_loc)
+        
+        # Prune history older than 24 hours to keep DB small
+        cutoff = now - timedelta(hours=24)
+        db.query(LocationHistory).filter(LocationHistory.timestamp < cutoff).delete()
+        db.commit()
+    finally:
+        db.close()
+        
     return {"status": "ok"}
 
 @app.get("/api/location", dependencies=[Depends(require_auth)])
 async def get_location():
     return JSONResponse(content=latest_mobile_location)
+
+@app.get("/api/location/history", dependencies=[Depends(require_auth)])
+async def get_location_history():
+    db = SessionLocal()
+    try:
+        # Get history from the last 24 hours ordered by time
+        cutoff = datetime.now() - timedelta(hours=24)
+        history = db.query(LocationHistory).filter(
+            LocationHistory.timestamp >= cutoff
+        ).order_by(LocationHistory.timestamp.asc()).all()
+        
+        results = [
+            {
+                "lat": h.lat,
+                "lng": h.lng,
+                "timestamp": h.timestamp.isoformat()
+            }
+            for h in history
+        ]
+        return JSONResponse(content=results)
+    finally:
+        db.close()
 
 @app.get("/stats", response_class=HTMLResponse)
 async def read_stats(request: Request):

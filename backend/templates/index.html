@@ -85,9 +85,18 @@
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
             </button>
         </div>
+        <!-- Tabs -->
+        <div class="flex border-b border-gray-200 dark:border-gray-800">
+            <button id="tab-btn-radar" class="flex-1 py-3 text-sm font-bold text-blue-600 border-b-2 border-blue-600 dark:text-blue-400 dark:border-blue-400 bg-gray-50 dark:bg-gray-800/50 transition-colors">
+                📡 Radar
+            </button>
+            <button id="tab-btn-history" class="flex-1 py-3 text-sm font-bold text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                🗺️ History
+            </button>
+        </div>
         
-        <!-- Scrollable Content -->
-        <div class="p-4 overflow-y-auto flex-1 space-y-6">
+        <!-- Radar Tab Content -->
+        <div id="tab-content-radar" class="p-4 overflow-y-auto flex-1 space-y-6">
             
             <!-- Search -->
             <div>
@@ -231,6 +240,23 @@
             </div>
         </div>
         
+        <!-- History Tab Content -->
+        <div id="tab-content-history" class="p-4 overflow-y-auto flex-1 space-y-6 hidden">
+            <div>
+                <h3 class="text-lg font-bold mb-2">Location History</h3>
+                <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">View the path of the broadcasting phone over the last 24 hours.</p>
+                
+                <button id="show-history-btn" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-4 rounded-lg shadow transition-colors mb-4 flex items-center justify-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h4l3-9 5 18 3-9h5"/></svg>
+                    Show Today's Path
+                </button>
+                <button id="clear-history-btn" class="w-full border border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 font-bold py-2 px-4 rounded-lg shadow-sm transition-colors flex items-center justify-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                    Clear Path
+                </button>
+            </div>
+        </div>
+        
         <!-- Footer Links -->
         <div class="p-4 border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50 sm:rounded-b-2xl mt-auto">
             <div class="flex justify-between items-center mb-2">
@@ -330,6 +356,8 @@
         let userLocationMarker = null;
         let adminLocationMarker = null;
         let broadcastWatchId = null;
+        let historyPolyline = null;
+        let historyMarkers = [];
 
         const darkMapStyle = [
             {elementType: "geometry", stylers: [{color: "#242f3e"}]},
@@ -891,6 +919,137 @@
                     console.error("Failed to fetch admin location", e);
                 }
             }, 5000);
+
+            // Tab Switching Logic
+            const tabBtnRadar = document.getElementById('tab-btn-radar');
+            const tabBtnHistory = document.getElementById('tab-btn-history');
+            const tabContentRadar = document.getElementById('tab-content-radar');
+            const tabContentHistory = document.getElementById('tab-content-history');
+            
+            if (tabBtnRadar && tabBtnHistory) {
+                tabBtnRadar.addEventListener('click', () => {
+                    tabContentRadar.classList.remove('hidden');
+                    tabContentHistory.classList.add('hidden');
+                    tabBtnRadar.classList.replace('text-gray-500', 'text-blue-600');
+                    tabBtnRadar.classList.add('border-b-2', 'border-blue-600', 'dark:text-blue-400', 'dark:border-blue-400', 'bg-gray-50', 'dark:bg-gray-800/50');
+                    tabBtnRadar.classList.remove('hover:bg-gray-50', 'dark:hover:bg-gray-800/50');
+                    
+                    tabBtnHistory.classList.replace('text-blue-600', 'text-gray-500');
+                    tabBtnHistory.classList.remove('border-b-2', 'border-blue-600', 'dark:text-blue-400', 'dark:border-blue-400', 'bg-gray-50', 'dark:bg-gray-800/50');
+                    tabBtnHistory.classList.add('hover:bg-gray-50', 'dark:hover:bg-gray-800/50');
+                });
+                
+                tabBtnHistory.addEventListener('click', () => {
+                    tabContentHistory.classList.remove('hidden');
+                    tabContentRadar.classList.add('hidden');
+                    tabBtnHistory.classList.replace('text-gray-500', 'text-blue-600');
+                    tabBtnHistory.classList.add('border-b-2', 'border-blue-600', 'dark:text-blue-400', 'dark:border-blue-400', 'bg-gray-50', 'dark:bg-gray-800/50');
+                    tabBtnHistory.classList.remove('hover:bg-gray-50', 'dark:hover:bg-gray-800/50');
+                    
+                    tabBtnRadar.classList.replace('text-blue-600', 'text-gray-500');
+                    tabBtnRadar.classList.remove('border-b-2', 'border-blue-600', 'dark:text-blue-400', 'dark:border-blue-400', 'bg-gray-50', 'dark:bg-gray-800/50');
+                    tabBtnRadar.classList.add('hover:bg-gray-50', 'dark:hover:bg-gray-800/50');
+                });
+            }
+
+            // Location History Logic
+            const showHistoryBtn = document.getElementById('show-history-btn');
+            const clearHistoryBtn = document.getElementById('clear-history-btn');
+            
+            function clearHistory() {
+                if (historyPolyline) {
+                    historyPolyline.setMap(null);
+                    historyPolyline = null;
+                }
+                historyMarkers.forEach(m => m.setMap(null));
+                historyMarkers = [];
+            }
+            
+            if (clearHistoryBtn) {
+                clearHistoryBtn.addEventListener('click', clearHistory);
+            }
+            
+            if (showHistoryBtn) {
+                showHistoryBtn.addEventListener('click', async () => {
+                    showHistoryBtn.innerHTML = '⏳ Loading...';
+                    try {
+                        const res = await fetch('/api/location/history');
+                        if (!res.ok) throw new Error("Failed to fetch");
+                        const data = await res.json();
+                        
+                        clearHistory();
+                        
+                        if (data.length === 0) {
+                            alert("No location history available for today.");
+                            showHistoryBtn.innerHTML = "📍 Show Today's Path";
+                            return;
+                        }
+                        
+                        const pathCoords = data.map(pt => ({lat: pt.lat, lng: pt.lng}));
+                        
+                        historyPolyline = new google.maps.Polyline({
+                            path: pathCoords,
+                            geodesic: true,
+                            strokeColor: '#ef4444', // Red
+                            strokeOpacity: 0.8,
+                            strokeWeight: 4,
+                            map: map
+                        });
+                        
+                        // Add time markers along the path
+                        // To avoid clutter, add a marker for the first point, last point, and every ~10 minutes
+                        let lastTime = null;
+                        data.forEach((pt, index) => {
+                            const date = new Date(pt.timestamp);
+                            
+                            // Show first, last, or if it's been at least 10 mins (600000 ms)
+                            let shouldShow = false;
+                            if (index === 0 || index === data.length - 1) {
+                                shouldShow = true;
+                            } else if (lastTime && (date - lastTime > 600000)) {
+                                shouldShow = true;
+                            }
+                            
+                            if (shouldShow) {
+                                lastTime = date;
+                                const timeStr = date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                                
+                                const marker = new google.maps.Marker({
+                                    position: {lat: pt.lat, lng: pt.lng},
+                                    map: map,
+                                    icon: {
+                                        path: google.maps.SymbolPath.CIRCLE,
+                                        scale: 4,
+                                        fillColor: '#ef4444',
+                                        fillOpacity: 1,
+                                        strokeColor: '#ffffff',
+                                        strokeWeight: 2,
+                                    },
+                                    label: {
+                                        text: timeStr,
+                                        color: '#000000',
+                                        fontSize: '11px',
+                                        fontWeight: 'bold',
+                                        className: 'bg-white px-1 rounded shadow-sm border border-gray-200 mt-8 block'
+                                    },
+                                    zIndex: 1000
+                                });
+                                historyMarkers.push(marker);
+                            }
+                        });
+                        
+                        // Zoom to fit bounds
+                        const bounds = new google.maps.LatLngBounds();
+                        pathCoords.forEach(pos => bounds.extend(pos));
+                        map.fitBounds(bounds);
+                        
+                    } catch (e) {
+                        console.error(e);
+                        alert("Error loading location history.");
+                    }
+                    showHistoryBtn.innerHTML = "📍 Show Today's Path";
+                });
+            }
 
             // Bind Slider input
             const minSlider = document.getElementById('min-attendees-slider');

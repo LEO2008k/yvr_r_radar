@@ -44,3 +44,11 @@ class ApiStatus(Base):
     last_checked = Column(DateTime, default=datetime.datetime.utcnow)
     last_status_change = Column(DateTime, default=datetime.datetime.utcnow)
     error_message = Column(String, nullable=True)
+
+class LocationHistory(Base):
+    __tablename__ = "location_history"
+
+    id = Column(Integer, primary_key=True, index=True)
+    lat = Column(Float)
+    lng = Column(Float)
+    timestamp = Column(DateTime, default=datetime.datetime.utcnow, index=True)
