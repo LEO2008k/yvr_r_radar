@@ -14,6 +14,9 @@ class MeetupScraper(BaseScraper):
         events = []
         
         for city in cities:
+            # Make random generation deterministic per day/city to avoid db duplicates
+            random.seed(f"meetup-{city}-{today_str}")
+            
             address = city.capitalize()
             lat, lng = get_lat_lng(address)
             

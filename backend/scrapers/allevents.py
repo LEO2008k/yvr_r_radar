@@ -3,6 +3,7 @@ from typing import List, Dict
 import httpx
 from bs4 import BeautifulSoup
 from datetime import datetime
+import random
 from .geocoder import get_lat_lng
 
 class AllEventsScraper(BaseScraper):
@@ -65,6 +66,9 @@ class AllEventsScraper(BaseScraper):
                     location_div = card.find('div', class_='location')
                     address = location_div.text.strip() if location_div else city.capitalize()
                     
+                    # Seed the random generator using the date_str and city so it generates consistent mock events
+                    random.seed(f"allevents-{city}-{date_str}")
+                    
                     # Geocode the address
                     lat, lng = get_lat_lng(address)
                     
@@ -87,7 +91,6 @@ class AllEventsScraper(BaseScraper):
                             "delta": (49.0847, -123.0586)
                         }
                         base_lat, base_lng = fallbacks.get(city.lower(), (49.2827, -123.1207))
-                        import random
                         lat = base_lat + random.uniform(-0.03, 0.03)
                         lng = base_lng + random.uniform(-0.03, 0.03)
                         

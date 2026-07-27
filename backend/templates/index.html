@@ -307,6 +307,11 @@
 
     
     <div id="map"></div>
+    
+    <!-- Locate Me Button -->
+    <button id="locate-me-btn" title="Locate Me" class="absolute bottom-8 right-4 z-50 bg-white dark:bg-gray-800 p-3 rounded-full shadow-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors group">
+        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-600 dark:text-blue-400 group-hover:scale-110 transition-transform"><circle cx="12" cy="12" r="10"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="M2 12h2"/><path d="M20 12h2"/><circle cx="12" cy="12" r="4"/></svg>
+    </button>
 
     <script>
         let map;
@@ -318,6 +323,8 @@
         let isHourlyMode = false;
         let currentHour = 12;
         let showFerries = false;
+        let showTrains = false;
+        let userLocationMarker = null;
         let showTrains = false;
 
         const darkMapStyle = [
@@ -753,6 +760,55 @@
                     } else {
                         const sourceMatch = (currentSource === 'All' || circle.source === currentSource);
                         circle.setMap(sourceMatch && dateMatch && hourMatch && searchMatch && attendeesMatch && showRadius ? map : null);
+                    }
+                });
+            }
+
+            // Locate Me Logic
+            const locateBtn = document.getElementById('locate-me-btn');
+            if (locateBtn) {
+                locateBtn.addEventListener('click', () => {
+                    if (navigator.geolocation) {
+                        locateBtn.classList.add('animate-pulse');
+                        navigator.geolocation.getCurrentPosition(
+                            (position) => {
+                                locateBtn.classList.remove('animate-pulse');
+                                const pos = {
+                                    lat: position.coords.latitude,
+                                    lng: position.coords.longitude,
+                                };
+                                map.panTo(pos);
+                                map.setZoom(14);
+                                
+                                if (!userLocationMarker) {
+                                    const svgMarker = {
+                                        path: 'M 0,0 C -2,-20 -10,-22 -10,-30 A 10,10 0 1,1 10,-30 C 10,-22 2,-20 0,0 z',
+                                        fillColor: '#3b82f6',
+                                        fillOpacity: 1,
+                                        strokeWeight: 2,
+                                        strokeColor: '#ffffff',
+                                        scale: 0.8,
+                                        anchor: new google.maps.Point(0, 0),
+                                    };
+                                    userLocationMarker = new google.maps.Marker({
+                                        position: pos,
+                                        map: map,
+                                        icon: svgMarker,
+                                        title: 'Your Location',
+                                        zIndex: 9999
+                                    });
+                                } else {
+                                    userLocationMarker.setPosition(pos);
+                                }
+                            },
+                            () => {
+                                locateBtn.classList.remove('animate-pulse');
+                                alert('Error: The Geolocation service failed. Please ensure location permissions are granted.');
+                            },
+                            { enableHighAccuracy: true }
+                        );
+                    } else {
+                        alert('Error: Your browser doesn\\'t support geolocation.');
                     }
                 });
             }

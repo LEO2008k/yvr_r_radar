@@ -43,6 +43,9 @@ class LumaScraper(BaseScraper):
                     target_date = today + datetime.timedelta(days=day_offset)
                     date_str = target_date.strftime('%Y-%m-%d')
                     
+                    # Make random generation deterministic per day/city to avoid db duplicates
+                    random.seed(f"luma-{city}-{date_str}")
+                    
                     is_online = random.random() < 0.2
                     title = f"Luma: {random.choice(titles)}"
                     address = "Online" if is_online else city.capitalize()
