@@ -11,7 +11,8 @@ Base.metadata.create_all(bind=engine)
 def scrape_all():
     print("Starting scrapers...")
     scrapers = [
-        LumaScraper(),
+        # LumaScraper(), # Disabled: This scraper currently generates mock/fake data
+
         MeetupScraper(),
         AllEventsScraper(),
         TrainsScraper()
