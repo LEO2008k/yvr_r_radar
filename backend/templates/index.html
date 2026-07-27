@@ -1003,8 +1003,37 @@
                             showHistoryBtn.innerHTML = "📍 Show Path";
                             return;
                         }
-                        
-                        const pathCoords = data.map(pt => ({lat: pt.lat, lng: pt.lng}));
+                        // Function to calculate distance between two coordinates in meters
+                        function getDistanceFromLatLonInM(lat1, lon1, lat2, lon2) {
+                            var R = 6371000; // Radius of the earth in m
+                            var dLat = (lat2-lat1) * (Math.PI/180);
+                            var dLon = (lon2-lon1) * (Math.PI/180); 
+                            var a = 
+                                Math.sin(dLat/2) * Math.sin(dLat/2) +
+                                Math.cos(lat1 * (Math.PI/180)) * Math.cos(lat2 * (Math.PI/180)) * 
+                                Math.sin(dLon/2) * Math.sin(dLon/2); 
+                            var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+                            return R * c;
+                        }
+
+                        // Filter out points that are too close (GPS noise while sitting at home)
+                        const filteredData = [];
+                        let lastPt = null;
+                        data.forEach(pt => {
+                            if (!lastPt) {
+                                filteredData.push(pt);
+                                lastPt = pt;
+                            } else {
+                                const dist = getDistanceFromLatLonInM(lastPt.lat, lastPt.lng, pt.lat, pt.lng);
+                                // Only add point if it's more than 50 meters away
+                                if (dist > 50) {
+                                    filteredData.push(pt);
+                                    lastPt = pt;
+                                }
+                            }
+                        });
+
+                        const pathCoords = filteredData.map(pt => ({lat: pt.lat, lng: pt.lng}));
                         
                         historyPolyline = new google.maps.Polyline({
                             path: pathCoords,
@@ -1018,12 +1047,12 @@
                         // Add time markers along the path
                         // To avoid clutter, add a marker for the first point, last point, and every ~10 minutes
                         let lastTime = null;
-                        data.forEach((pt, index) => {
+                        filteredData.forEach((pt, index) => {
                             const date = new Date(pt.timestamp);
                             
                             // Show first, last, or if it's been at least 10 mins (600000 ms)
                             let shouldShow = false;
-                            if (index === 0 || index === data.length - 1) {
+                            if (index === 0 || index === filteredData.length - 1) {
                                 shouldShow = true;
                             } else if (lastTime && (date - lastTime > 600000)) {
                                 shouldShow = true;
