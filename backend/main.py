@@ -19,11 +19,13 @@ from typing import Optional
 class MobileLocation(BaseModel):
     lat: float
     lng: float
+    device_type: Optional[str] = "mobile"
 
 latest_mobile_location = {
     "lat": None,
     "lng": None,
-    "updated_at": None
+    "updated_at": None,
+    "device_type": "mobile"
 }
 
 def check_api_health():
@@ -206,6 +208,7 @@ async def update_location(loc: MobileLocation):
     # Update global state for quick latest poll
     latest_mobile_location["lat"] = loc.lat
     latest_mobile_location["lng"] = loc.lng
+    latest_mobile_location["device_type"] = loc.device_type
     now = datetime.now()
     latest_mobile_location["updated_at"] = now.isoformat()
     
